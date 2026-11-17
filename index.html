@@ -2,6 +2,8 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; worker-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#04171b">
 <meta name="description" content="顔写真をのせた人面魚が泳ぐ3Dの水槽。写真は端末の中だけで処理します。">
@@ -166,6 +168,17 @@ button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer}
   color:var(--fg-dim);font-size:13px;padding:7px 12px}
 .line-warn{font-size:12px;color:#e8c46a;letter-spacing:.04em}
 
+/* ---- この たんまつの データ ---- */
+.data-box{width:min(760px,100%);display:flex;flex-direction:column;gap:10px;
+  border-top:1px solid var(--edge);padding-top:16px}
+.danger-btn{border-color:rgba(236,128,116,.55);color:#f3b8ae}
+.confirm{border:1px solid rgba(236,128,116,.5);border-radius:14px;padding:14px 16px;
+  background:rgba(64,16,14,.40);display:flex;flex-direction:column;gap:12px}
+.confirm p{margin:0;line-height:1.8;font-size:14px;text-align:center}
+.danger-big{background:linear-gradient(180deg,rgba(236,128,116,.38),rgba(236,128,116,.12));
+  border-color:rgba(236,128,116,.65);padding:12px 32px;font-size:18px}
+.done-note{color:#bfe9d9}
+
 /* ---- せりふの がぞう：みぎうえ、きんの わく、すこし すける ---- */
 #picWin{
   position:fixed;z-index:3;
@@ -252,7 +265,20 @@ input[type=file]{display:none}
     <ol id="lineList"></ol>
     <div class="row"><button class="tg" id="addLine">＋　せりふを　ふやす</button></div>
   </section>
-  <p class="note">しゃしん・がぞう・ボイスは　この　たんまつの　そとに　でません。ほぞんも　しません。<br>せりふの　もじと「よみあげ／ボイス」の　えらびだけ　この　たんまつに　おぼえます。</p>
+  <section class="data-box" aria-labelledby="dataHead">
+    <div class="sec-head"><span id="dataHead">この　たんまつの　データ</span></div>
+    <p class="sec-note">かおの　しゃしん・せりふ・せりふの　がぞう・ボイスは、この　たんまつの　なか　だけに　ほぞんして　います。つぎに　ひらいても　のこります。どこにも　おくりません。</p>
+    <div class="row"><button class="tg danger-btn" id="wipeBtn">データを　けす</button></div>
+    <div class="confirm" id="wipeConfirm" hidden>
+      <p>かおの　しゃしん・せりふ・がぞう・ボイスを、この　たんまつから　ぜんぶ　けします。<br>けすと　もとに　もどせません。</p>
+      <div class="row">
+        <button class="ghost" id="wipeNo">やめる</button>
+        <button class="big danger-big" id="wipeYes">けす</button>
+      </div>
+    </div>
+    <p class="sec-note done-note" id="wipeDone" role="status" hidden>けしました。せりふは　はじめの　10こに　もどりました。</p>
+  </section>
+  <p class="note">しゃしん・がぞう・ボイス・せりふは　この　たんまつの　そとに　でません。<br>よみあげも　たんまつの　なかで　おこないます。</p>
 </div>
 
 <div id="fallback">この　たんまつでは　３Ｄが　うごきません。<br>ほかの　ブラウザで　ひらいて　みて　ください。</div>
@@ -1687,34 +1713,58 @@ input[type=file]{display:none}
     }
   }
 
-  /* ================= こえ ================= */
+  /* ================= こえ =================
+     セリフの もじを ぜったいに そとに おくらない ために、
+     たんまつの なかで よみあげる こえ（localService）だけ を つかう。
+     ネットで よみあげる こえ（PC の Chrome の Google の こえ など）は つかわない。
+     Apple の たんまつ（iPad・iPhone・Mac の Safari）は よみあげが すべて たんまつ の なか。 */
+  var APPLE_TTS = /Apple Computer/.test(navigator.vendor || '');
   var jaVoices = [], jaVoice = null, userPickedVoice = false;
   var voiceSel = document.getElementById('voiceSel');
 
-  // たんまつに ある こえに てんすうを つけて、いちばん よいものを えらぶ
+  // たんまつの なかの こえ だけに てんすうを つけて、いちばん よいものを えらぶ
   function voiceScore(v) {
     var n = (v.name || '').toLowerCase();
     if (!/^ja/i.test(v.lang || '')) return -1;
+    if (v.localService !== true) return -1;            // ネットの こえは つかわない
     var s = 10;
     if ((v.lang || '') === 'ja-JP') s += 5;
     if (n.indexOf('eloquence') >= 0) s -= 60;          // きかいっぽい ふるい こえ
     if (n.indexOf('compact') >= 0) s -= 25;
-    if (n.indexOf('google') >= 0) s += 50;
     if (n.indexOf('premium') >= 0 || n.indexOf('enhanced') >= 0 ||
         n.indexOf('プレミアム') >= 0 || n.indexOf('拡張') >= 0) s += 40;
     if (n.indexOf('siri') >= 0) s += 30;
     if (/kyoko|otoya|hattori|o-ren|oren|きょうこ|おとや/.test(n)) s += 25;
     if (/nanami|ayumi|haruka|ichiro|keita|mayu|naoki/.test(n)) s += 20;
-    if (v.localService === false) s += 6;
     return s;
   }
+  // おまかせ の ときに つかう こえ
+  function autoVoice() {
+    if (!jaVoices.length) return null;
+    // Apple は いちらんが あてに ならないので、よい こえが なければ たんまつの きほん（たんまつの なか）に まかせる
+    if (APPLE_TTS && voiceScore(jaVoices[0]) < 35) return null;
+    return jaVoices[0];
+  }
+  // たんまつの なかで よみあげられる ときだけ よみあげの じゅんびを する（できない ときは null）
+  function localUtterance(text) {
+    if (!('speechSynthesis' in window)) return null;
+    if (!jaVoice && !APPLE_TTS) return null;           // たんまつの なかの こえが ない → よみあげない
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ja-JP';
+    if (jaVoice) u.voice = jaVoice;
+    applyVoiceStyle(u);
+    return u;
+  }
+  function canSpeakLocally() { return ('speechSynthesis' in window) && (!!jaVoice || APPLE_TTS); }
 
   function fillVoiceSelect() {
     if (!voiceSel) return;
     voiceSel.innerHTML = '';
     var o0 = document.createElement('option');
     o0.value = 'auto';
-    o0.textContent = 'たんまつに　おまかせ';
+    o0.textContent = canSpeakLocally() || jaVoices.length
+      ? 'たんまつに　おまかせ'
+      : 'たんまつの　なかで　よみあげる　こえが　ありません（じまく　だけ）';
     voiceSel.appendChild(o0);
     for (var i = 0; i < jaVoices.length; i++) {
       var o = document.createElement('option');
@@ -1733,8 +1783,7 @@ input[type=file]{display:none}
     for (var i = 0; i < vs.length; i++) if (voiceScore(vs[i]) >= 0) list.push(vs[i]);
     list.sort(function (a, b) { return voiceScore(b) - voiceScore(a); });
     jaVoices = list;
-    // よい こえが みつからない ときは たんまつに まかせる（iPad は いちらんが あてに ならない）
-    if (!userPickedVoice) jaVoice = (list.length && voiceScore(list[0]) >= 35) ? list[0] : null;
+    if (!userPickedVoice || (jaVoice && list.indexOf(jaVoice) < 0)) jaVoice = autoVoice();
     fillVoiceSelect();
   }
   if ('speechSynthesis' in window) {
@@ -1755,13 +1804,11 @@ input[type=file]{display:none}
     var finished = false;
     function finish() { if (finished) return; finished = true; clearTimeout(timer); onDone(); }
     var timer = setTimeout(finish, 1600 + plain.length * 230);
-    if (!opt.voice || !('speechSynthesis' in window)) return;
+    if (!opt.voice) return;
     try {
+      var u = localUtterance(plain);
+      if (!u) return;                   // たんまつの なかで よめない ときは じまく だけ
       speechSynthesis.cancel();
-      var u = new SpeechSynthesisUtterance(plain);
-      u.lang = 'ja-JP';
-      if (jaVoice) u.voice = jaVoice;   // えらべない ときは たんまつの きほんの こえ
-      applyVoiceStyle(u);
       u.onend = finish;
       speechSynthesis.speak(u);
     } catch (e) {}
@@ -1780,6 +1827,86 @@ input[type=file]{display:none}
   }
   function hideCaption() { capEl.classList.remove('on'); }
 
+  /* ================= この たんまつの なかだけに ほぞん =================
+     ブラウザの なかの IndexedDB に しまう。どこにも おくらない（つうしんは いっさい しない）。
+     しまう もの：かおの がぞう ／ せりふの いちらん ／ せりふの がぞう ／ ボイスの おと */
+  var DB_NAME = 'kao-no-sakana', DB_STORE = 'kv';
+  var FACEK_KEY = 'kao-no-sakana:face-k';
+  var dbp = null;
+  function db() {
+    if (dbp) return dbp;
+    dbp = new Promise(function (res, rej) {
+      try {
+        if (!window.indexedDB) { rej(new Error('no indexedDB')); return; }
+        var rq = indexedDB.open(DB_NAME, 1);
+        rq.onupgradeneeded = function () { rq.result.createObjectStore(DB_STORE); };
+        rq.onsuccess = function () { res(rq.result); };
+        rq.onerror = function () { rej(rq.error); };
+        rq.onblocked = function () { rej(new Error('blocked')); };
+      } catch (e) { rej(e); }
+    });
+    dbp.catch(function () { dbp = null; });
+    return dbp;
+  }
+  function idbDo(mode, fn) {
+    return db().then(function (d) {
+      return new Promise(function (res, rej) {
+        var tx = d.transaction(DB_STORE, mode);
+        var rq = fn(tx.objectStore(DB_STORE));
+        tx.oncomplete = function () { res(rq ? rq.result : undefined); };
+        tx.onerror = function () { rej(tx.error); };
+        tx.onabort = function () { rej(tx.error); };
+      });
+    });
+  }
+  function idbGet(k) { return idbDo('readonly', function (st) { return st.get(k); }).catch(function () { return undefined; }); }
+  function idbPut(k, v) { return idbDo('readwrite', function (st) { return st.put(v, k); }).catch(function () {}); }
+  function idbDel(k) { return idbDo('readwrite', function (st) { return st.delete(k); }).catch(function () {}); }
+  function idbWipe() {
+    return new Promise(function (res) {
+      function go() {
+        try {
+          var rq = indexedDB.deleteDatabase(DB_NAME);
+          rq.onsuccess = rq.onerror = rq.onblocked = function () { res(); };
+        } catch (e) { res(); }
+      }
+      if (dbp) dbp.then(function (d) { try { d.close(); } catch (e) {} dbp = null; go(); },
+                        function () { dbp = null; go(); });
+      else go();
+    });
+  }
+  // ブラウザに「けさないで」と たのむ（たいおう して いない ときは なにも しない）
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+
+  function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  // ファイル → しまえる かたち（ArrayBuffer。iPad でも あんぜんに しまえる）
+  function blobToRecord(blob) {
+    return new Promise(function (res, rej) {
+      var fr = new FileReader();
+      fr.onload = function () { res({ type: blob.type || 'application/octet-stream', buf: fr.result }); };
+      fr.onerror = function () { rej(fr.error); };
+      fr.readAsArrayBuffer(blob);
+    });
+  }
+  function recordToBlob(r) { return new Blob([r.buf], { type: r.type }); }
+  // おおきな しゃしんは ちぢめて から しまう（ながい へんを maxSide に）
+  function shrinkImage(file, maxSide) {
+    return new Promise(function (res) {
+      var url = URL.createObjectURL(file);
+      var im = new Image();
+      im.onload = function () {
+        var s = Math.min(1, maxSide / Math.max(im.width, im.height));
+        var c = makeCanvas(Math.max(1, Math.round(im.width * s)), Math.max(1, Math.round(im.height * s)));
+        c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        if (c.toBlob) c.toBlob(function (b) { res(b || file); }, 'image/jpeg', 0.86);
+        else res(file);
+      };
+      im.onerror = function () { URL.revokeObjectURL(url); res(file); };
+      im.src = url;
+    });
+  }
+
   /* ---- せりふの いちらん（さいだい 10こ）----
      ひとつの せりふ = もじ ／ がぞう ／ よみあげ か ボイス か ／ ボイスの おと
      もじ と「よみあげ・ボイス」の えらびだけ この たんまつに おぼえる。
@@ -1790,7 +1917,12 @@ input[type=file]{display:none}
   var LINE_GAP = 10000;      // せりふは 10びょうに 1かい（はなしはじめ から つぎの はなしはじめ まで）
   var lineItems = [];
   function newLine(text, mode) {
-    return { text: text || '', url: null, mode: mode === 'voice' ? 'voice' : 'tts', voiceBuf: null, voiceName: '' };
+    return {
+      text: text || '', mode: mode === 'voice' ? 'voice' : 'tts',
+      url: null, imgId: null,                       // せりふの がぞう（ほぞん ばんごう）
+      voiceBuf: null, voiceId: null, voiceName: '', // ボイス（ほぞん ばんごう）
+      voiceBytes: null                              // ほぞんから よみだして、まだ おとに して いない もの
+    };
   }
   (function loadLines() {
     var saved = null;
@@ -1805,12 +1937,21 @@ input[type=file]{display:none}
       else if (s && typeof s.text === 'string') lineItems.push(newLine(s.text, s.mode));
     }
   })();
+  var saveLinesTimer = null;
+  function linesMeta() {
+    return lineItems.map(function (l) {
+      return { text: l.text, mode: l.mode, imgId: l.imgId, voiceId: l.voiceId, voiceName: l.voiceName };
+    });
+  }
   function saveLines() {
     try {
       localStorage.setItem(LINES_KEY, JSON.stringify(lineItems.map(function (l) {
         return { text: l.text, mode: l.mode };
       })));
     } catch (e) {}
+    // がぞう・ボイスの ばんごう も いっしょに この たんまつに しまう（すこし まとめて から）
+    clearTimeout(saveLinesTimer);
+    saveLinesTimer = setTimeout(function () { idbPut('lines', linesMeta()); }, 300);
   }
   function hasText(l) { return l.text.replace(/[　 ]/g, '').length > 0; }
   function usesVoice(l) { return l.mode === 'voice' && !!l.voiceBuf; }
@@ -1865,15 +2006,23 @@ input[type=file]{display:none}
     }
     return Math.sqrt(sum / voiceWave.length);
   }
-  // えらんだ おとの ファイルを よみこむ（この たんまつの なかだけ）
-  function decodeVoiceFile(file, ok, ng) {
+  // おとの データを ならせる かたちに する（この たんまつの なかだけ）
+  function decodeBytes(arrayBuf, ok, ng) {
     if (!actx) { ng(); return; }
-    var fr = new FileReader();
-    fr.onload = function () {
-      try { actx.decodeAudioData(fr.result, ok, function () { ng(); }); } catch (e) { ng(); }
-    };
-    fr.onerror = function () { ng(); };
-    fr.readAsArrayBuffer(file);
+    try { actx.decodeAudioData(arrayBuf.slice(0), ok, function () { ng(); }); } catch (e) { ng(); }
+  }
+  // ほぞんから よみだした ボイスを、おとが だせる ように なったら じゅんに ならせる かたちに する
+  function ensureVoices() {
+    if (!actx) return;
+    lineItems.forEach(function (it) {
+      if (!it.voiceBytes || it.voiceBuf || it.voiceDecoding) return;
+      it.voiceDecoding = true;
+      decodeBytes(it.voiceBytes, function (buf) {
+        it.voiceDecoding = false; it.voiceBuf = buf; renderLines();
+      }, function () {
+        it.voiceDecoding = false; it.voiceError = true; renderLines();
+      });
+    });
   }
 
   /* ---- みぎうえの がぞう ---- */
@@ -2094,8 +2243,9 @@ input[type=file]{display:none}
     initAudio();
     if (actx && actx.state === 'suspended') actx.resume();
     startMusic();
+    ensureVoices();          // ほぞん して あった ボイスを ならせる かたちに する
     if ('speechSynthesis' in window) {
-      try { var w = new SpeechSynthesisUtterance(' '); w.volume = 0; speechSynthesis.speak(w); } catch (e) {}
+      try { var w = localUtterance(' '); if (w) { w.volume = 0; speechSynthesis.speak(w); } } catch (e) {}
     }
     startTalking();
   });
@@ -2335,8 +2485,23 @@ input[type=file]{display:none}
     featherEdge();
     faceTex.needsUpdate = true;
     setHeadTint();
+    saveFace();              // この たんまつに しまう（どこにも おくらない）
     closeSetup();
   });
+
+  // きめた かおを この たんまつに しまう
+  function saveFace() {
+    try {
+      if (!faceCv.toBlob) return;
+      faceCv.toBlob(function (b) {
+        if (!b) return;
+        blobToRecord(b).then(function (rec) { return idbPut('face', rec); });
+      }, 'image/png');
+    } catch (e) {}
+  }
+  function saveFaceK() {
+    try { localStorage.setItem(FACEK_KEY, JSON.stringify({ nose: NOSE_K, mouth: MOUTH_K })); } catch (e) {}
+  }
 
   /* ---- トグル ---- */
   function toggle(id, key, after) {
@@ -2354,18 +2519,15 @@ input[type=file]{display:none}
 
   if (voiceSel) {
     voiceSel.addEventListener('change', function () {
-      userPickedVoice = true;
-      jaVoice = voiceSel.value === 'auto' ? null : (jaVoices[+voiceSel.value] || null);
+      userPickedVoice = voiceSel.value !== 'auto';
+      jaVoice = voiceSel.value === 'auto' ? autoVoice() : (jaVoices[+voiceSel.value] || autoVoice());
     });
   }
   document.getElementById('voiceTest').addEventListener('click', function () {
-    if (!('speechSynthesis' in window)) return;
     try {
+      var u = localUtterance('こんにちは。ぼくの こえは、これだよ。');
+      if (!u) return;                    // たんまつの なかで よめない ときは ならさない
       speechSynthesis.cancel();
-      var u = new SpeechSynthesisUtterance('こんにちは。ぼくの こえは、これだよ。');
-      u.lang = 'ja-JP';
-      if (jaVoice) u.voice = jaVoice;
-      applyVoiceStyle(u);
       speechSynthesis.speak(u);
     } catch (e) {}
   });
@@ -2379,16 +2541,19 @@ input[type=file]{display:none}
   rngNose.addEventListener('input', function () {
     NOSE_K = (+rngNose.value) / 100;
     rebuildFace();
+    saveFaceK();
   });
   // くちの たての ひらき（0% = あかない、100% = ふつう、250% = おおきく）
   var rngMouth = document.getElementById('rngMouth');
   rngMouth.addEventListener('input', function () {
     MOUTH_K = (+rngMouth.value) / 100;
+    saveFaceK();
   });
   document.getElementById('resetNose').addEventListener('click', function () {
     rngNose.value = '100'; NOSE_K = 1;
     rngMouth.value = '100'; MOUTH_K = 1;
     rebuildFace();
+    saveFaceK();
   });
 
   /* ---- せりふの へんしゅう ---- */
@@ -2441,7 +2606,11 @@ input[type=file]{display:none}
         px3.textContent = '×';
         px3.setAttribute('aria-label', (i + 1) + 'ばんの がぞうを はずす');
         px3.addEventListener('click', function () {
-          URL.revokeObjectURL(it.url); it.url = null; renderLines();
+          URL.revokeObjectURL(it.url); it.url = null;
+          if (it.imgId) idbDel('img:' + it.imgId);
+          it.imgId = null;
+          saveLines();
+          renderLines();
         });
         wrap.appendChild(px3);
       }
@@ -2453,6 +2622,8 @@ input[type=file]{display:none}
       del.setAttribute('aria-label', (i + 1) + 'ばんの せりふを けす');
       del.addEventListener('click', function () {
         if (it.url) URL.revokeObjectURL(it.url);
+        if (it.imgId) idbDel('img:' + it.imgId);
+        if (it.voiceId) idbDel('voice:' + it.voiceId);
         lineItems.splice(i, 1);
         saveLines();
         renderLines();
@@ -2483,20 +2654,26 @@ input[type=file]{display:none}
       if (it.mode === 'voice') {
         var vb = document.createElement('button');
         vb.type = 'button';
-        vb.className = 'voice-btn' + (it.voiceBuf ? ' has' : '');
+        var hasVoice = !!(it.voiceBuf || it.voiceBytes);
+        vb.className = 'voice-btn' + (hasVoice ? ' has' : '');
         vb.textContent = it.voiceBuf
           ? it.voiceName + '（' + it.voiceBuf.duration.toFixed(1) + 'びょう）'
-          : 'ボイスの　ファイルを　えらぶ';
+          : (it.voiceBytes ? it.voiceName + '（ほぞんずみ）' : 'ボイスの　ファイルを　えらぶ');
         vb.setAttribute('aria-label', (i + 1) + 'ばんの ボイスの ファイルを えらぶ');
         vb.addEventListener('click', function () { pickingVoice = i; voiceFile.click(); });
         opts.appendChild(vb);
-        if (it.voiceBuf) {
+        if (hasVoice) {
           var vx = document.createElement('button');
           vx.type = 'button';
           vx.className = 'voice-x';
           vx.textContent = 'はずす';
           vx.setAttribute('aria-label', (i + 1) + 'ばんの ボイスを はずす');
-          vx.addEventListener('click', function () { it.voiceBuf = null; it.voiceName = ''; renderLines(); });
+          vx.addEventListener('click', function () {
+            if (it.voiceId) idbDel('voice:' + it.voiceId);
+            it.voiceBuf = null; it.voiceBytes = null; it.voiceId = null; it.voiceName = '';
+            saveLines();
+            renderLines();
+          });
           opts.appendChild(vx);
         } else {
           var warn = document.createElement('span');
@@ -2530,12 +2707,21 @@ input[type=file]{display:none}
     var it = lineItems[pickingLine];
     pickingLine = -1;
     if (!f || !it) return;
-    if (it.url) URL.revokeObjectURL(it.url);
-    it.url = URL.createObjectURL(f);      // この たんまつの なかだけ。どこにも おくらない
-    renderLines();
+    // ちぢめて から この たんまつに しまう（どこにも おくらない）
+    shrinkImage(f, 1400).then(function (b) {
+      var oldId = it.imgId;
+      if (it.url) URL.revokeObjectURL(it.url);
+      it.url = URL.createObjectURL(b);
+      it.imgId = newId();
+      var id = it.imgId;
+      blobToRecord(b).then(function (rec) { return idbPut('img:' + id, rec); });
+      if (oldId) idbDel('img:' + oldId);
+      saveLines();
+      renderLines();
+    });
   });
 
-  // ボイスの ファイル（この たんまつの なかだけ。どこにも おくらない、ほぞんも しない）
+  // ボイスの ファイル（この たんまつの なかだけに しまう。どこにも おくらない）
   voiceFile.addEventListener('change', function () {
     var f = voiceFile.files && voiceFile.files[0];
     voiceFile.value = '';
@@ -2543,17 +2729,23 @@ input[type=file]{display:none}
     pickingVoice = -1;
     if (!f || !it) return;
     it.voiceError = false;
-    decodeVoiceFile(f, function (buf) {
-      it.voiceBuf = buf;
-      it.voiceName = f.name.replace(/\.[^.]+$/, '');
-      it.mode = 'voice';
-      saveLines();
-      renderLines();
-    }, function () {
-      it.voiceBuf = null;
-      it.voiceError = true;
-      renderLines();
-    });
+    blobToRecord(f).then(function (rec) {
+      decodeBytes(rec.buf, function (buf) {
+        var oldId = it.voiceId;
+        it.voiceBuf = buf;
+        it.voiceBytes = rec.buf;
+        it.voiceId = newId();
+        it.voiceName = f.name.replace(/\.[^.]+$/, '');
+        it.mode = 'voice';
+        idbPut('voice:' + it.voiceId, rec);
+        if (oldId) idbDel('voice:' + oldId);
+        saveLines();
+        renderLines();
+      }, function () {
+        it.voiceError = true;
+        renderLines();
+      });
+    }, function () { it.voiceError = true; renderLines(); });
   });
 
   renderLines();
@@ -2561,17 +2753,116 @@ input[type=file]{display:none}
     if (ambientGain) ambientGain.gain.value = opt.bubble ? 0.014 : 0;
   });
   toggle('tgMotion', 'motion');
-  document.getElementById('tgClear').addEventListener('click', function () {
+  function resetFaceEditor() {
     drawDefaultFace();
     img = null;
     emptyState.hidden = false; hint.hidden = true;
     applyBtn.hidden = true; repickBtn.hidden = true; stretchRow.hidden = true;
     drawCrop();
+  }
+  document.getElementById('tgClear').addEventListener('click', function () {
+    resetFaceEditor();
+    idbDel('face');          // しまって あった かおも けす
   });
+
+  /* ---- この たんまつの データを けす ---- */
+  var wipeBtn = document.getElementById('wipeBtn');
+  var wipeConfirm = document.getElementById('wipeConfirm');
+  var wipeYes = document.getElementById('wipeYes');
+  var wipeNo = document.getElementById('wipeNo');
+  var wipeDone = document.getElementById('wipeDone');
+  wipeBtn.addEventListener('click', function () {
+    wipeDone.hidden = true;
+    wipeBtn.hidden = true;
+    wipeConfirm.hidden = false;
+    wipeNo.focus();
+  });
+  wipeNo.addEventListener('click', function () {
+    wipeConfirm.hidden = true;
+    wipeBtn.hidden = false;
+    wipeBtn.focus();
+  });
+  wipeYes.addEventListener('click', function () {
+    wipeYes.disabled = true;
+    stopVoice();
+    hidePic();
+    clearTimeout(saveLinesTimer);
+    lineItems.forEach(function (it) { if (it.url) URL.revokeObjectURL(it.url); });
+    try {
+      localStorage.removeItem(LINES_KEY);
+      localStorage.removeItem(LINES_KEY_OLD);
+      localStorage.removeItem(FACEK_KEY);
+    } catch (e) {}
+    idbWipe().then(function () {
+      lineItems = DEFAULT_LINES.map(function (t) { return newLine(t, 'tts'); });
+      lastIdx = -1;
+      renderLines();
+      resetFaceEditor();
+      NOSE_K = 1; MOUTH_K = 1; rngNose.value = '100'; rngMouth.value = '100';
+      rebuildFace();
+      wipeYes.disabled = false;
+      wipeConfirm.hidden = true;
+      wipeBtn.hidden = false;
+      wipeDone.hidden = false;
+    });
+  });
+
+  /* ---- まえに しまった ものを もどす（おなじ たんまつ だけ）---- */
+  function restoreAll() {
+    try {
+      var fk = JSON.parse(localStorage.getItem(FACEK_KEY) || 'null');
+      if (fk) {
+        if (typeof fk.nose === 'number') { NOSE_K = fk.nose; rngNose.value = String(Math.round(fk.nose * 100)); }
+        if (typeof fk.mouth === 'number') { MOUTH_K = fk.mouth; rngMouth.value = String(Math.round(fk.mouth * 100)); }
+        rebuildFace();
+      }
+    } catch (e) {}
+
+    idbGet('face').then(function (rec) {
+      if (!rec || !rec.buf) return;
+      var url = URL.createObjectURL(recordToBlob(rec));
+      var im = new Image();
+      im.onload = function () {
+        fctx.clearRect(0, 0, FW, FH);
+        fctx.drawImage(im, 0, 0, FW, FH);
+        URL.revokeObjectURL(url);
+        faceTex.needsUpdate = true;
+        setHeadTint();
+      };
+      im.onerror = function () { URL.revokeObjectURL(url); };
+      im.src = url;
+    });
+
+    idbGet('lines').then(function (meta) {
+      if (!Array.isArray(meta) || !meta.length) return;
+      var items = meta.slice(0, MAX_LINES).map(function (m) {
+        var it = newLine(m.text, m.mode);
+        it.imgId = m.imgId || null;
+        it.voiceId = m.voiceId || null;
+        it.voiceName = m.voiceName || '';
+        return it;
+      });
+      var jobs = [];
+      items.forEach(function (it) {
+        if (it.imgId) jobs.push(idbGet('img:' + it.imgId).then(function (r) {
+          if (r && r.buf) it.url = URL.createObjectURL(recordToBlob(r)); else it.imgId = null;
+        }));
+        if (it.voiceId) jobs.push(idbGet('voice:' + it.voiceId).then(function (r) {
+          if (r && r.buf) it.voiceBytes = r.buf; else { it.voiceId = null; it.voiceName = ''; }
+        }));
+      });
+      return Promise.all(jobs).then(function () {
+        lineItems = items;
+        renderLines();
+        ensureVoices();
+      });
+    });
+  }
 
   /* ================= はじめ ================= */
   resize();
   frame();
+  restoreAll();
 })();
 </script>
 </body>
