@@ -1,0 +1,1815 @@
+<title>かおの さかな</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap">
+<style>
+/* 立体の水槽ひとつ。濁った緑の水、上から落ちる光、手前にくる魚。UI は水の上に薄く浮かべる */
+:root{
+  --deep:#04171b;
+  --fg:#eaf7f4;
+  --fg-dim:#9fc4bf;
+  --panel:rgba(4,23,27,.74);
+  --edge:rgba(143,227,207,.22);
+  --font:"Zen Maru Gothic","Hiragino Maru Gothic ProN","BIZ UDPGothic",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--deep)}
+body{font-family:var(--font);color:var(--fg);-webkit-tap-highlight-color:transparent}
+
+#tank{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+
+.screen{
+  position:fixed;inset:0;z-index:5;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:calc(env(safe-area-inset-top,0px) + 24px) calc(env(safe-area-inset-bottom,0px) + 24px);
+  background:radial-gradient(120% 90% at 50% 40%,rgba(4,23,27,.42),rgba(4,23,27,.9));
+  backdrop-filter:blur(2px);
+}
+.screen[hidden]{display:none!important}
+
+h1{
+  font-size:clamp(28px,7vw,46px);font-weight:700;margin:0;
+  letter-spacing:.06em;text-wrap:balance;text-align:center;
+  text-shadow:0 2px 24px rgba(0,0,0,.65);
+}
+.lead{margin:0;color:var(--fg-dim);font-size:clamp(15px,3.6vw,18px);text-align:center;line-height:1.9}
+
+button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer}
+.big{
+  border:1px solid var(--edge);border-radius:999px;
+  background:linear-gradient(180deg,rgba(143,227,207,.20),rgba(143,227,207,.07));
+  padding:20px 44px;font-size:clamp(20px,5vw,26px);font-weight:700;letter-spacing:.1em;
+  box-shadow:0 10px 40px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.18);
+}
+.big:active{transform:translateY(1px)}
+.ghost{
+  border:1px solid var(--edge);border-radius:999px;background:rgba(4,23,27,.5);
+  padding:14px 28px;font-size:17px;font-weight:500;letter-spacing:.08em;
+}
+:focus-visible{outline:2px solid #8fe3cf;outline-offset:3px}
+
+#caption{
+  position:fixed;z-index:3;left:0;right:0;
+  bottom:calc(env(safe-area-inset-bottom,0px) + 26px);
+  padding-left:max(20px,env(safe-area-inset-left,0px));
+  padding-right:max(20px,env(safe-area-inset-right,0px));
+  display:flex;justify-content:center;pointer-events:none;
+}
+#caption span{
+  display:inline-block;max-width:min(900px,100%);
+  background:var(--panel);border:1px solid var(--edge);border-radius:20px;
+  padding:16px 26px;
+  font-size:clamp(20px,4.6vw,30px);font-weight:500;line-height:1.75;
+  text-align:center;letter-spacing:.02em;
+  box-shadow:0 8px 30px rgba(0,0,0,.45);
+  opacity:0;transform:translateY(8px);transition:opacity .5s ease,transform .5s ease;
+}
+#caption.on span{opacity:1;transform:none}
+#caption.off{display:none}
+
+#secret{
+  position:fixed;z-index:4;
+  right:calc(env(safe-area-inset-right,0px) + 14px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 14px);
+  width:46px;height:46px;border-radius:50%;
+  border:1px solid rgba(143,227,207,.14);background:rgba(143,227,207,.06);
+  display:grid;place-items:center;touch-action:none;
+}
+#secret svg{width:18px;height:18px;opacity:.35}
+#secret .ring{position:absolute;inset:-3px;width:52px;height:52px;opacity:1;pointer-events:none}
+
+#setup{justify-content:flex-start;gap:16px;overflow-y:auto}
+.setup-head{font-size:clamp(17px,4vw,21px);font-weight:700;letter-spacing:.06em;text-align:center}
+#stage{
+  position:relative;width:100%;flex:1 0 auto;min-width:0;
+  height:min(56vh,440px);min-height:260px;
+  border-radius:22px;overflow:hidden;border:1px solid var(--edge);
+  background:#071c22;touch-action:none;
+}
+#stage canvas{position:absolute;inset:0;width:100%;height:100%}
+.hint{
+  position:absolute;left:0;right:0;bottom:12px;text-align:center;
+  font-size:14px;color:var(--fg-dim);pointer-events:none;text-shadow:0 1px 8px #000;
+}
+.empty{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:18px;text-align:center;padding:20px;
+}
+.empty p{margin:0;color:var(--fg-dim);font-size:15px;line-height:1.9}
+.row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;width:100%}
+.toggles{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.tg{
+  border:1px solid var(--edge);border-radius:999px;background:rgba(4,23,27,.5);
+  padding:9px 18px;font-size:14px;letter-spacing:.06em;color:var(--fg-dim);
+}
+.tg[aria-pressed="true"]{color:var(--fg);background:rgba(143,227,207,.16);border-color:rgba(143,227,207,.4)}
+.sel{
+  border:1px solid var(--edge);border-radius:999px;background:rgba(4,23,27,.6);
+  color:var(--fg);padding:9px 16px;font-size:14px;font-family:inherit;
+  max-width:min(320px,70vw);
+}
+.rng{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--fg-dim);letter-spacing:.06em}
+.rng input[type=range]{width:min(150px,30vw);accent-color:#8fe3cf;background:transparent}
+.note{font-size:12.5px;color:var(--fg-dim);text-align:center;line-height:1.8;max-width:620px;margin:0}
+input[type=file]{display:none}
+
+#fallback{
+  position:fixed;inset:0;z-index:9;display:none;
+  align-items:center;justify-content:center;text-align:center;
+  padding:24px;background:var(--deep);line-height:2;
+}
+@media (prefers-reduced-motion:reduce){ #caption span{transition:none} }
+</style>
+
+<canvas id="tank"></canvas>
+
+<div id="caption"><span></span></div>
+
+<button id="secret" aria-label="せんせい よう">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.6.76 1 1.4 1H21a2 2 0 1 1 0 4h-.09c-.64 0-1.2.4-1.51 1Z"/></svg>
+  <svg class="ring" viewBox="0 0 52 52"><circle cx="26" cy="26" r="24" fill="none" stroke="#8fe3cf" stroke-width="2" stroke-linecap="round" stroke-dasharray="151" stroke-dashoffset="151" id="ringArc" transform="rotate(-90 26 26)"/></svg>
+</button>
+
+<div class="screen" id="start">
+  <h1>かおの　さかな</h1>
+  <p class="lead">みずそうを　ひらくと、<br>さかなが　はなしかけて　きます。</p>
+  <button class="big" id="go">みずそうを　ひらく</button>
+</div>
+
+<div class="screen" id="setup" hidden>
+  <div class="setup-head">かおを　わくに　あわせる</div>
+  <div id="stage">
+    <canvas id="crop"></canvas>
+    <div class="empty" id="emptyState">
+      <p>しゃしんは　この　たんまつの　なかだけで　つかいます。<br>どこにも　おくられず、　とじると　きえます。</p>
+      <button class="big" id="pick">しゃしんを　えらぶ</button>
+    </div>
+    <div class="hint" id="hint" hidden>きいろの　しるしに　め　と　くち　を　あわせる<br>ゆびで　うごかす　／　ふたつの　ゆびで　たて・よこ　べつべつに　のばす</div>
+  </div>
+  <div class="row" id="stretchRow" hidden>
+    <label class="rng"><span>よこ</span><input type="range" id="rngX" min="40" max="300" value="100"></label>
+    <label class="rng"><span>たて</span><input type="range" id="rngY" min="40" max="300" value="100"></label>
+    <button class="tg" id="resetFit">もとに　もどす</button>
+  </div>
+  <div class="row">
+    <button class="ghost" id="repick" hidden>べつの　しゃしん</button>
+    <button class="ghost" id="cancel">もどる</button>
+    <button class="big" id="apply" hidden style="padding:16px 36px;font-size:20px">これで　いい</button>
+  </div>
+  <div class="row">
+    <select id="voiceSel" class="sel" aria-label="こえを えらぶ"></select>
+    <button class="tg" id="voiceTest">ためしに　きく</button>
+    <button class="tg" id="tgWeird" aria-pressed="false">へんな　こえ</button>
+  </div>
+  <div class="toggles">
+    <button class="tg" id="tgVoice" aria-pressed="true">こえ</button>
+    <button class="tg" id="tgCap" aria-pressed="true">じまく</button>
+    <button class="tg" id="tgBubble" aria-pressed="true">あわの　おと</button>
+    <button class="tg" id="tgMotion" aria-pressed="true">うごき</button>
+    <button class="tg" id="tgClear">かおを　けす</button>
+  </div>
+  <p class="note">しゃしんは　この　たんまつの　そとに　でません。ほぞんも　しません。</p>
+</div>
+
+<div id="fallback">この　たんまつでは　３Ｄが　うごきません。<br>ほかの　ブラウザで　ひらいて　みて　ください。</div>
+
+<input type="file" id="file" accept="image/*">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  if (!window.THREE) { document.getElementById('fallback').style.display = 'flex'; return; }
+
+  /* ================= せりふ ================= */
+  // しゅうがくりょこうの ふりかえり。じゅんばんどおりに はなす
+  var LINES = [
+    'とうきょうに　しゅうがくりょこうに　いったんだ。',
+    'しんかんせんからは　ふじさんが　みえたよ。',
+    'すかいつりーは　ひとが　たくさん　いたよ。',
+    'おみやげも　かえたよ。',
+    'そらからちゃんに　あえて　うれしかったな。',
+    'こっかいぎじどうで　カツカレーを　たべたよ。',
+    'ほてるは　みんなで　ねたよ。',
+    'よるごはんは　おかわり　できたよ。',
+    'あさごはんは　おかわり　できなかったよ。',
+    'アクアパークしながわは　イルカショーを　みたよ。'
+  ];
+
+  var opt = { voice: true, caption: true, bubble: true, motion: true, weird: false };
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) opt.motion = false;
+
+  /* ================= れんだらー ================= */
+  var cv = document.getElementById('tank');
+  var renderer, scene, camera;
+  var W = 1, H = 1;
+
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: false, powerPreference: 'high-performance' });
+  } catch (e) {
+    document.getElementById('fallback').style.display = 'flex';
+    return;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  if ('outputEncoding' in renderer && THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
+  if (THREE.ACESFilmicToneMapping) {
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.92;
+  }
+
+  var WATER = 0x07262c;
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(WATER);
+  scene.fog = new THREE.FogExp2(WATER, 0.072);
+
+  camera = new THREE.PerspectiveCamera(42, 1, 0.1, 80);
+  camera.position.set(0, 0.15, 5.0);
+  camera.lookAt(0, 0, 0);
+
+  function resize() {
+    W = cv.clientWidth || window.innerWidth;
+    H = cv.clientHeight || window.innerHeight;
+    renderer.setSize(W, H, false);
+    camera.aspect = W / H;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+
+  /* ================= ひかり ================= */
+  scene.add(new THREE.HemisphereLight(0xa8f0e2, 0x08201c, 0.46));
+  var sun = new THREE.DirectionalLight(0xd8fff4, 1.15);
+  sun.position.set(1.4, 5.0, 2.2);
+  scene.add(sun);
+  var rim = new THREE.DirectionalLight(0x2f9c97, 0.55);
+  rim.position.set(-2.6, 0.6, -2.4);
+  scene.add(rim);
+  var fill = new THREE.PointLight(0x9fe8dd, 0.5, 14);
+  fill.position.set(0, 1.2, 4.2);
+  scene.add(fill);
+
+  /* ================= て作りの もよう ================= */
+  function makeCanvas(w, h) {
+    var c = document.createElement('canvas'); c.width = w; c.height = h; return c;
+  }
+  function tex(canvas, rx, ry) {
+    var t = new THREE.CanvasTexture(canvas);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    if (rx) t.repeat.set(rx, ry || rx);
+    if (THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
+    return t;
+  }
+
+  // うろこ：たかさの ずを つくり、そこから いろと でこぼこ(normal map)を おこす
+  // よこ(u) = からだの まわり、たて(v) = あたま(0) から しっぽ(1)
+  function fishSkinMaps() {
+    var TW = 512, TH = 768;
+    var hc = makeCanvas(TW, TH), hx = hc.getContext('2d');
+    hx.fillStyle = '#808080'; hx.fillRect(0, 0, TW, TH);
+
+    var cols = 22, rows = 50;
+    for (var r = 0; r < rows; r++) {
+      var v = (r + 0.5) / rows;
+      // あたまには うろこを ださない。しっぽの さきで また きえる
+      var fade = Math.max(0, Math.min(1, (v - 0.19) / 0.13)) *
+                 Math.max(0, Math.min(1, (0.99 - v) / 0.08));
+      if (fade <= 0.02) continue;
+      var sw = TW / cols, sh = TH / rows;
+      var sz = sw * (1 - 0.38 * v);
+      for (var c = -1; c <= cols; c++) {
+        var cx2 = ((c + (r % 2) * 0.5) + 0.5) * sw;
+        var cy2 = (r + 0.6) * sh;
+        var jitter = 0.86 + Math.random() * 0.28;
+        var rr2 = sz * 0.56 * jitter;
+        // うろこの もりあがり
+        var g2 = hx.createRadialGradient(cx2, cy2 - rr2 * 0.35, rr2 * 0.1, cx2, cy2, rr2 * 1.15);
+        g2.addColorStop(0, 'rgba(255,255,255,' + (0.46 * fade) + ')');
+        g2.addColorStop(0.65, 'rgba(255,255,255,' + (0.16 * fade) + ')');
+        g2.addColorStop(1, 'rgba(255,255,255,0)');
+        hx.fillStyle = g2;
+        hx.beginPath(); hx.arc(cx2, cy2, rr2 * 1.15, 0, 6.2832); hx.fill();
+        // うろこの ふち（みぞ）
+        hx.beginPath();
+        hx.arc(cx2, cy2 - rr2 * 0.15, rr2, 0.10 * Math.PI, 0.90 * Math.PI);
+        hx.strokeStyle = 'rgba(0,0,0,' + (0.42 * fade) + ')';
+        hx.lineWidth = Math.max(1.4, sz * 0.095); hx.stroke();
+      }
+    }
+    // そくせん（からだの よこを はしる すじ）。u=0 と u=0.5 が からだの よこ
+    [0, TW * 0.5].forEach(function (lx) {
+      for (var y = Math.round(TH * 0.22); y < TH * 0.96; y += 7) {
+        hx.beginPath();
+        hx.ellipse(lx, y, 4.5, 2.4, 0, 0, 6.2832);
+        hx.fillStyle = 'rgba(0,0,0,.22)'; hx.fill();
+        if (lx === 0) { hx.beginPath(); hx.ellipse(TW, y, 4.5, 2.4, 0, 0, 6.2832); hx.fill(); }
+      }
+    });
+
+    var hd = hx.getImageData(0, 0, TW, TH).data;
+
+    // いろ（しろ に ちかい。ちょうてんの いろに かける）
+    var cc = makeCanvas(TW, TH), cx3 = cc.getContext('2d');
+    var cimg = cx3.createImageData(TW, TH), cd = cimg.data;
+    for (var i = 0; i < hd.length; i += 4) {
+      var h = hd[i] / 255;
+      var vv = 0.78 + h * 0.46;
+      cd[i] = Math.min(255, 255 * vv * 0.98);
+      cd[i + 1] = Math.min(255, 255 * vv);
+      cd[i + 2] = Math.min(255, 255 * vv * 0.95);
+      cd[i + 3] = 255;
+    }
+    cx3.putImageData(cimg, 0, 0);
+
+    // でこぼこ
+    var nc = makeCanvas(TW, TH), nx2 = nc.getContext('2d');
+    var nimg = nx2.createImageData(TW, TH), nd = nimg.data;
+    var str = 2.8;
+    for (var y2 = 0; y2 < TH; y2++) {
+      var rowo = y2 * TW;
+      var up = Math.max(0, y2 - 1) * TW, dn = Math.min(TH - 1, y2 + 1) * TW;
+      for (var x2 = 0; x2 < TW; x2++) {
+        var o = (rowo + x2) * 4;
+        var dX = (hd[(rowo + ((x2 + 1) % TW)) * 4] - hd[(rowo + ((x2 - 1 + TW) % TW)) * 4]) / 255 * str;
+        var dY = (hd[(dn + x2) * 4] - hd[(up + x2) * 4]) / 255 * str;
+        var len = Math.sqrt(dX * dX + dY * dY + 1);
+        nd[o] = (-dX / len * 0.5 + 0.5) * 255;
+        nd[o + 1] = (-dY / len * 0.5 + 0.5) * 255;
+        nd[o + 2] = (1 / len * 0.5 + 0.5) * 255;
+        nd[o + 3] = 255;
+      }
+    }
+    nx2.putImageData(nimg, 0, 0);
+
+    var tc = new THREE.CanvasTexture(cc);
+    tc.wrapS = THREE.RepeatWrapping; tc.wrapT = THREE.ClampToEdgeWrapping;
+    if (THREE.sRGBEncoding) tc.encoding = THREE.sRGBEncoding;
+    tc.anisotropy = 4;
+    var tn = new THREE.CanvasTexture(nc);
+    tn.wrapS = THREE.RepeatWrapping; tn.wrapT = THREE.ClampToEdgeWrapping;
+    tn.anisotropy = 4;
+    return { color: tc, normal: tn };
+  }
+
+  // すな
+  function sandTexture() {
+    var c = makeCanvas(512, 512), x = c.getContext('2d');
+    x.fillStyle = '#3a3426'; x.fillRect(0, 0, 512, 512);
+    for (var i = 0; i < 24000; i++) {
+      var l = 20 + Math.random() * 60;
+      x.fillStyle = 'rgba(' + (l + 50) + ',' + (l + 44) + ',' + (l + 28) + ',' + (0.1 + Math.random() * 0.4) + ')';
+      x.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
+    }
+    for (var j = 0; j < 90; j++) {
+      x.beginPath();
+      x.arc(Math.random() * 512, Math.random() * 512, 2 + Math.random() * 5, 0, 6.2832);
+      x.fillStyle = 'rgba(120,112,92,' + (0.12 + Math.random() * 0.2) + ')';
+      x.fill();
+    }
+    return tex(c, 7, 7);
+  }
+
+  // みずの ひかりの もよう
+  var cauCv = makeCanvas(256, 256);
+  var cauCtx = cauCv.getContext('2d');
+  function drawCaustics(t) {
+    cauCtx.clearRect(0, 0, 256, 256);
+    cauCtx.fillStyle = '#000'; cauCtx.fillRect(0, 0, 256, 256);
+    cauCtx.globalCompositeOperation = 'lighter';
+    cauCtx.strokeStyle = 'rgba(150,245,220,0.55)';
+    for (var k = 0; k < 7; k++) {
+      cauCtx.beginPath();
+      cauCtx.lineWidth = 3 + (k % 3);
+      for (var i = 0; i <= 64; i++) {
+        var u = i / 64 * 256;
+        var v = 128 + Math.sin(u * 0.045 + t * 0.6 + k * 1.7) * 70 + Math.sin(u * 0.019 - t * 0.4 + k) * 46 + (k - 3) * 26;
+        if (i === 0) cauCtx.moveTo(u, v); else cauCtx.lineTo(u, v);
+      }
+      cauCtx.stroke();
+    }
+    cauCtx.globalCompositeOperation = 'source-over';
+  }
+  drawCaustics(0);
+  var cauTex = new THREE.CanvasTexture(cauCv);
+  cauTex.wrapS = cauTex.wrapT = THREE.RepeatWrapping;
+  cauTex.repeat.set(3, 3);
+
+  // つぶ
+  function dotTexture() {
+    var c = makeCanvas(64, 64), x = c.getContext('2d');
+    var g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, 'rgba(235,255,250,1)');
+    g.addColorStop(0.35, 'rgba(200,250,240,.55)');
+    g.addColorStop(1, 'rgba(200,250,240,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(c);
+  }
+
+  // ひかりの すじ
+  function beamTexture() {
+    var c = makeCanvas(64, 256), x = c.getContext('2d');
+    var g = x.createLinearGradient(0, 0, 0, 256);
+    g.addColorStop(0, 'rgba(190,255,240,0.55)');
+    g.addColorStop(0.5, 'rgba(170,250,232,0.16)');
+    g.addColorStop(1, 'rgba(160,245,228,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 64, 256);
+    var h = x.createLinearGradient(0, 0, 64, 0);
+    h.addColorStop(0, 'rgba(0,0,0,1)');
+    h.addColorStop(0.5, 'rgba(0,0,0,0)');
+    h.addColorStop(1, 'rgba(0,0,0,1)');
+    x.globalCompositeOperation = 'destination-out';
+    x.fillStyle = h; x.fillRect(0, 0, 64, 256);
+    return new THREE.CanvasTexture(c);
+  }
+
+  /* ================= みずそう ================= */
+  var FLOOR_Y = -2.1;
+
+  var floorMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(36, 36, 1, 1),
+    new THREE.MeshStandardMaterial({ map: sandTexture(), roughness: 1, metalness: 0 })
+  );
+  floorMesh.rotation.x = -Math.PI / 2;
+  floorMesh.position.y = FLOOR_Y;
+  scene.add(floorMesh);
+
+  var cauMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(36, 36, 1, 1),
+    new THREE.MeshBasicMaterial({ map: cauTex, transparent: true, opacity: 0.30, blending: THREE.AdditiveBlending, depthWrite: false })
+  );
+  cauMesh.rotation.x = -Math.PI / 2;
+  cauMesh.position.y = FLOOR_Y + 0.02;
+  scene.add(cauMesh);
+
+  var backWall = new THREE.Mesh(
+    new THREE.PlaneGeometry(40, 24),
+    new THREE.MeshBasicMaterial({ color: 0x041a1f })
+  );
+  backWall.position.set(0, 4, -24);
+  scene.add(backWall);
+
+  // ひかりの すじ
+  var beams = new THREE.Group();
+  var beamTex = beamTexture();
+  for (var bi = 0; bi < 10; bi++) {
+    var bw = 0.9 + Math.random() * 2.2;
+    var bm = new THREE.Mesh(
+      new THREE.PlaneGeometry(bw, 13),
+      new THREE.MeshBasicMaterial({
+        map: beamTex, transparent: true, opacity: 0.20 + Math.random() * 0.26,
+        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+      })
+    );
+    bm.position.set(-8 + bi * 1.8 + Math.random() * 1.4, 3.4, -10 + Math.random() * 11);
+    bm.rotation.z = (Math.random() - 0.5) * 0.34;
+    bm.userData.ph = Math.random() * 6.28;
+    beams.add(bm);
+  }
+  scene.add(beams);
+
+  // みずくさ
+  var plants = new THREE.Group();
+  var plantMat = new THREE.MeshStandardMaterial({ color: 0x23543a, roughness: 0.9, side: THREE.DoubleSide });
+  var plantList = [];
+  for (var pi = 0; pi < 16; pi++) {
+    var ph = 1.6 + Math.random() * 2.4;
+    var g = new THREE.PlaneGeometry(0.17 + Math.random() * 0.1, ph, 1, 10);
+    g.translate(0, ph / 2, 0);
+    var m = new THREE.Mesh(g, plantMat);
+    var side = pi % 2 === 0 ? -1 : 1;
+    m.position.set(side * (2.0 + Math.random() * 5.5), FLOOR_Y, -1.5 - Math.random() * 13);
+    m.rotation.y = Math.random() * 3.14;
+    m.userData = { base: g.attributes.position.array.slice(0), ph: Math.random() * 6.28, h: ph };
+    plants.add(m);
+    plantList.push(m);
+  }
+  // はばの ひろい みずくさ
+  var leafMat = new THREE.MeshStandardMaterial({ color: 0x1b4630, roughness: 0.94, side: THREE.DoubleSide });
+  for (var li = 0; li < 10; li++) {
+    var lh = 0.8 + Math.random() * 1.3;
+    var lg = new THREE.PlaneGeometry(0.26 + Math.random() * 0.22, lh, 1, 8);
+    lg.translate(0, lh / 2, 0);
+    var lm = new THREE.Mesh(lg, leafMat);
+    lm.position.set((Math.random() - 0.5) * 14, FLOOR_Y, -1.2 - Math.random() * 11);
+    lm.rotation.y = Math.random() * 3.14;
+    lm.userData = { base: lg.attributes.position.array.slice(0), ph: Math.random() * 6.28, h: lh };
+    plants.add(lm);
+    plantList.push(lm);
+  }
+  scene.add(plants);
+
+  // いわ
+  var rockMat = new THREE.MeshStandardMaterial({ color: 0x24231d, roughness: 1, metalness: 0, flatShading: true });
+  var rocks = new THREE.Group();
+  for (var ri = 0; ri < 16; ri++) {
+    var rs = 0.18 + Math.random() * 0.52;
+    var rm = new THREE.Mesh(new THREE.IcosahedronGeometry(rs, 1), rockMat);
+    rm.scale.set(1, 0.42 + Math.random() * 0.3, 0.8 + Math.random() * 0.55);
+    rm.position.set((Math.random() - 0.5) * 17, FLOOR_Y - rs * 0.12, -0.5 - Math.random() * 13);
+    rm.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+    rocks.add(rm);
+  }
+  scene.add(rocks);
+
+  // みずの おもて：したから みあげた ときの あかるい まど
+  function surfaceTexture() {
+    var S = 256, c = makeCanvas(S, S), x = c.getContext('2d');
+    x.clearRect(0, 0, S, S);
+    var g = x.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    g.addColorStop(0, 'rgba(198,255,243,.62)');
+    g.addColorStop(0.35, 'rgba(170,246,230,.30)');
+    g.addColorStop(0.72, 'rgba(140,230,215,.08)');
+    g.addColorStop(1, 'rgba(120,210,200,0)');
+    x.fillStyle = g; x.fillRect(0, 0, S, S);
+    x.globalCompositeOperation = 'lighter';
+    for (var k = 0; k < 9; k++) {
+      x.beginPath();
+      for (var i = 0; i <= 48; i++) {
+        var u = i / 48 * S;
+        var v = S / 2 + Math.sin(u * 0.035 + k * 1.4) * 26 + Math.sin(u * 0.013 + k) * 40 + (k - 4) * 16;
+        if (i === 0) x.moveTo(u, v); else x.lineTo(u, v);
+      }
+      x.strokeStyle = 'rgba(210,255,246,.10)'; x.lineWidth = 5; x.stroke();
+    }
+    return new THREE.CanvasTexture(c);
+  }
+  var surface = new THREE.Mesh(new THREE.PlaneGeometry(26, 26, 1, 1), new THREE.MeshBasicMaterial({
+    map: surfaceTexture(), transparent: true, opacity: 0.32,
+    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+  }));
+  surface.rotation.x = Math.PI / 2;
+  surface.position.set(0, 4.9, -4);
+  scene.add(surface);
+
+  // ただよう つぶ
+  var dotTex = dotTexture();
+  var MOTES = 420;
+  var moteGeo = new THREE.BufferGeometry();
+  var motePos = new Float32Array(MOTES * 3);
+  var moteSpd = new Float32Array(MOTES);
+  for (var mi = 0; mi < MOTES; mi++) {
+    motePos[mi * 3] = (Math.random() - 0.5) * 18;
+    motePos[mi * 3 + 1] = FLOOR_Y + Math.random() * 9;
+    motePos[mi * 3 + 2] = -11 + Math.random() * 15;
+    moteSpd[mi] = 0.08 + Math.random() * 0.22;
+  }
+  moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
+  var motes = new THREE.Points(moteGeo, new THREE.PointsMaterial({
+    size: 0.05, map: dotTex, transparent: true, opacity: 0.4,
+    depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true
+  }));
+  scene.add(motes);
+
+  // あわ
+  var BUBS = 90;
+  var bubGeo = new THREE.BufferGeometry();
+  var bubPos = new Float32Array(BUBS * 3);
+  var bubSpd = new Float32Array(BUBS);
+  function resetBubble(i) {
+    bubPos[i * 3] = (Math.random() - 0.5) * 11;
+    bubPos[i * 3 + 1] = FLOOR_Y + Math.random() * 0.4;
+    bubPos[i * 3 + 2] = -7 + Math.random() * 9;
+    bubSpd[i] = 0.5 + Math.random() * 0.9;
+  }
+  for (var bj = 0; bj < BUBS; bj++) { resetBubble(bj); bubPos[bj * 3 + 1] = FLOOR_Y + Math.random() * 8; }
+  var bubCursor = 0;
+  function emitBubbles(wx, wy, wz, n) {
+    for (var i = 0; i < n; i++) {
+      var k = bubCursor % BUBS; bubCursor++;
+      bubPos[k * 3] = wx + (Math.random() - 0.5) * 0.16;
+      bubPos[k * 3 + 1] = wy + (Math.random() - 0.5) * 0.10;
+      bubPos[k * 3 + 2] = wz + (Math.random() - 0.5) * 0.16;
+      bubSpd[k] = 0.55 + Math.random() * 0.70;
+    }
+    bubGeo.attributes.position.needsUpdate = true;
+  }
+  bubGeo.setAttribute('position', new THREE.BufferAttribute(bubPos, 3));
+  var bubs = new THREE.Points(bubGeo, new THREE.PointsMaterial({
+    size: 0.09, map: dotTex, transparent: true, opacity: 0.45,
+    depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true
+  }));
+  scene.add(bubs);
+
+  /* ================= かおの もと ================= */
+  var FW = 512, FH = 640;
+  var faceCv = makeCanvas(FW, FH);
+  var fctx = faceCv.getContext('2d');
+
+  function featherEdge() {
+    // ふちを ぼかして、あたまの いろに とけこませる
+    var g = fctx.createRadialGradient(FW / 2, FH / 2, FW * 0.34, FW / 2, FH / 2, FW * 0.50);
+    g.addColorStop(0, 'rgba(0,0,0,1)');
+    g.addColorStop(0.80, 'rgba(0,0,0,1)');
+    g.addColorStop(0.94, 'rgba(0,0,0,.65)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    fctx.save();
+    fctx.globalCompositeOperation = 'destination-in';
+    fctx.translate(FW / 2, FH / 2); fctx.scale(1, FH / FW); fctx.translate(-FW / 2, -FH / 2);
+    fctx.fillStyle = g; fctx.fillRect(0, 0, FW, FH);
+    fctx.restore();
+  }
+
+  function drawDefaultFace() {
+    fctx.clearRect(0, 0, FW, FH);
+    fctx.save();
+    fctx.beginPath(); fctx.ellipse(256, 320, 252, 316, 0, 0, 6.2832); fctx.clip();
+    var g = fctx.createLinearGradient(0, 0, 0, FH);
+    g.addColorStop(0, '#dcc6a8'); g.addColorStop(0.55, '#c9ae8e'); g.addColorStop(1, '#a98d70');
+    fctx.fillStyle = g; fctx.fillRect(0, 0, FW, FH);
+    var eyes = [173, 339];
+    for (var i = 0; i < 2; i++) {
+      var ex = eyes[i];
+      fctx.beginPath(); fctx.ellipse(ex, 288, 48, 32, 0, 0, 6.2832);
+      fctx.fillStyle = '#f3ece2'; fctx.fill();
+      fctx.beginPath(); fctx.arc(ex, 291, 18, 0, 6.2832);
+      fctx.fillStyle = '#20160e'; fctx.fill();
+      fctx.beginPath(); fctx.arc(ex - 6, 285, 5.5, 0, 6.2832);
+      fctx.fillStyle = 'rgba(255,255,255,.9)'; fctx.fill();
+      fctx.beginPath(); fctx.ellipse(ex, 232, 50, 14, 0, Math.PI, 0, true);
+      fctx.strokeStyle = 'rgba(78,58,42,.34)'; fctx.lineWidth = 8; fctx.stroke();
+    }
+    fctx.beginPath(); fctx.moveTo(256, 304); fctx.quadraticCurveTo(243, 374, 259, 387);
+    fctx.strokeStyle = 'rgba(88,64,44,.45)'; fctx.lineWidth = 8; fctx.lineCap = 'round'; fctx.stroke();
+    fctx.beginPath(); fctx.moveTo(202, 445); fctx.quadraticCurveTo(256, 467, 310, 445);
+    fctx.strokeStyle = 'rgba(78,50,38,.6)'; fctx.lineWidth = 9; fctx.stroke();
+    fctx.restore();
+    featherEdge();
+    faceTex.needsUpdate = true;
+    setHeadTint();
+  }
+
+  var faceTex = new THREE.CanvasTexture(faceCv);
+  if (THREE.sRGBEncoding) faceTex.encoding = THREE.sRGBEncoding;
+  faceTex.anisotropy = 4;
+
+  /* ================= さかな ================= */
+  var fishGroup = new THREE.Group();
+  scene.add(fishGroup);
+
+  // あたまも からだも ひとつづきの めん。つなぎめを つくらない
+  var HEAD_Z = 1.00, HRX = 0.72, HRY = 0.88, HRZ = 0.66;
+  var NOSE_Z = HEAD_Z + HRZ;
+  var TAIL_Z = -3.60;
+
+  function smoothstep(e0, e1, x) {
+    var k = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
+    return k * k * (3 - 2 * k);
+  }
+
+  // あたまの うしろから しっぽまで、ふとさを なめらかに おとす
+  var TAPER = [[0, 1.00], [0.06, 0.97], [0.14, 0.90], [0.24, 0.78], [0.36, 0.63], [0.50, 0.47], [0.64, 0.33], [0.80, 0.17], [1, 0.035]];
+  function taperAt(u) {
+    for (var i = 0; i < TAPER.length - 1; i++) {
+      if (u <= TAPER[i + 1][0]) {
+        var a = TAPER[i], b = TAPER[i + 1];
+        var k = (u - a[0]) / (b[0] - a[0]);
+        k = k * k * (3 - 2 * k);
+        return a[1] + (b[1] - a[1]) * k;
+      }
+    }
+    return TAPER[TAPER.length - 1][1];
+  }
+
+  var HEAD_RINGS = 22, BODY_RINGS = 78, RING = 30;
+  var headBlend = [], shadeArr = [], gillW = [], colArr = null;
+
+  function buildBody() {
+    var pos = [], uvs = [], idx = [], rows = [];
+    headBlend = []; shadeArr = []; gillW = [];
+    // あたまの まるみ（たまごの まえはんぶん）
+    for (var i = 0; i <= HEAD_RINGS; i++) {
+      var phi = 0.11 + (Math.PI / 2 - 0.11) * (i / HEAD_RINGS);
+      rows.push({ z: HEAD_Z + HRZ * Math.cos(phi), rr: Math.sin(phi), u: 0 });
+    }
+    // からだ
+    for (var j = 1; j <= BODY_RINGS; j++) {
+      var u = j / BODY_RINGS;
+      rows.push({ z: HEAD_Z + (TAIL_Z - HEAD_Z) * u, rr: taperAt(u), u: u });
+    }
+    for (var k = 0; k < rows.length; k++) {
+      var R = rows[k];
+      var m = smoothstep(0, 0.48, R.u);
+      var wk = HRX + (0.42 - HRX) * m;          // だんだん ひらたく
+      var hk = HRY + (0.62 - HRY) * m;          // だんだん ほそく
+      var cy = -0.055 * Math.sin(Math.PI * R.u);
+      var hb = 1 - smoothstep(0.012, 0.26, R.u);
+      for (var n = 0; n <= RING; n++) {
+        var a = n / RING * Math.PI * 2;
+        pos.push(R.rr * wk * Math.cos(a), cy + R.rr * hk * Math.sin(a), R.z);
+        uvs.push(n / RING, R.u);
+        headBlend.push(hb);
+        shadeArr.push(0.58 + 0.64 * (0.5 - 0.5 * Math.sin(a)));  // せなかは くらく、はらは あかるく
+        gillW.push(Math.exp(-Math.pow((R.u - 0.13) / 0.075, 2)));  // えらの あたり
+      }
+    }
+    for (var p = 0; p < rows.length - 1; p++) {
+      for (var q = 0; q < RING; q++) {
+        var A = p * (RING + 1) + q, B = A + RING + 1;
+        idx.push(A, B, A + 1, A + 1, B, B + 1);
+      }
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    colArr = new Float32Array(pos.length);
+    g.setAttribute('color', new THREE.BufferAttribute(colArr, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
+  }
+
+  var bodyGeo = buildBody();
+  var bodyBase = bodyGeo.attributes.position.array.slice(0);
+
+  // いろは ちょうてんごと。はだいろ → さかなの いろ へ なめらかに
+  var FISH_RGB = [0.385, 0.455, 0.395];
+  var SKIN_RGB = [0.76, 0.66, 0.53];
+  function applyTint() {
+    for (var i = 0, v = 0; i < colArr.length; i += 3, v++) {
+      var hb = headBlend[v], s = shadeArr[v];
+      colArr[i] = (FISH_RGB[0] + (SKIN_RGB[0] - FISH_RGB[0]) * hb) * s;
+      colArr[i + 1] = (FISH_RGB[1] + (SKIN_RGB[1] - FISH_RGB[1]) * hb) * s;
+      colArr[i + 2] = (FISH_RGB[2] + (SKIN_RGB[2] - FISH_RGB[2]) * hb) * s;
+    }
+    bodyGeo.attributes.color.needsUpdate = true;
+  }
+  applyTint();
+
+  var SKIN = fishSkinMaps();
+  var bodyMesh = new THREE.Mesh(bodyGeo, new THREE.MeshStandardMaterial({
+    vertexColors: true, map: SKIN.color, normalMap: SKIN.normal,
+    normalScale: new THREE.Vector2(0.85, 0.85),
+    roughness: 0.44, metalness: 0.10
+  }));
+  fishGroup.add(bodyMesh);
+
+  // ひれ：ひれすじ(じょう)と まく の もよう
+  function finTexture() {
+    var TW = 256, TH = 256;
+    var c = makeCanvas(TW, TH), x = c.getContext('2d');
+    x.clearRect(0, 0, TW, TH);
+    var g = x.createLinearGradient(0, 0, 0, TH);
+    g.addColorStop(0, 'rgba(104,126,114,.92)');
+    g.addColorStop(0.5, 'rgba(96,118,108,.66)');
+    g.addColorStop(1, 'rgba(88,110,102,.18)');
+    x.fillStyle = g; x.fillRect(0, 0, TW, TH);
+    for (var i = 0; i <= 24; i++) {
+      var px2 = (i / 24) * TW + (Math.random() - 0.5) * 2;
+      x.beginPath();
+      x.moveTo(px2, 0);
+      x.quadraticCurveTo(px2 + (Math.random() - 0.5) * 5, TH * 0.5, px2 + (Math.random() - 0.5) * 9, TH);
+      x.strokeStyle = 'rgba(62,86,78,' + (0.30 + Math.random() * 0.24) + ')';
+      x.lineWidth = 1.5 + Math.random() * 1.5;
+      x.stroke();
+      x.beginPath();
+      x.moveTo(px2 + 2.4, 0); x.lineTo(px2 + 2.4, TH);
+      x.strokeStyle = 'rgba(228,246,238,.13)'; x.lineWidth = 1; x.stroke();
+    }
+    var t = new THREE.CanvasTexture(c);
+    if (THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
+    return t;
+  }
+  var FIN_TEX = finTexture();
+  function newFinMat() {
+    return new THREE.MeshStandardMaterial({
+      map: FIN_TEX, transparent: true, side: THREE.DoubleSide,
+      roughness: 0.82, metalness: 0, depthWrite: false, alphaTest: 0.04
+    });
+  }
+
+  // そとがたを きめて はる ひれ（おびれ・むなびれ・はらびれ）
+  function polyFin(root, outline) {
+    var pos = [root[0], root[1], root[2]], uvs = [0.5, 0], idx = [];
+    for (var i = 0; i < outline.length; i++) {
+      pos.push(outline[i][0], outline[i][1], outline[i][2]);
+      uvs.push(i / (outline.length - 1), 1);
+    }
+    for (var j = 1; j < outline.length; j++) idx.push(0, j, j + 1);
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return new THREE.Mesh(g, newFinMat());
+  }
+
+  // ねもとの せん から さきの せん へ はる ひれ（せびれ・しりびれ）
+  function ribbonFin(rA, rB, tA, tB, rays, scallop, bow) {
+    var pos = [], uvs = [], idx = [];
+    for (var i = 0; i <= rays; i++) {
+      var t = i / rays;
+      var s = 1 - scallop * (i % 2);
+      var rx = rA[0] + (rB[0] - rA[0]) * t, ry = rA[1] + (rB[1] - rA[1]) * t, rz = rA[2] + (rB[2] - rA[2]) * t;
+      var tx = tA[0] + (tB[0] - tA[0]) * t;
+      var ty = tA[1] + (tB[1] - tA[1]) * t + bow * Math.sin(Math.PI * t);
+      var tz = tA[2] + (tB[2] - tA[2]) * t;
+      pos.push(rx, ry, rz);
+      pos.push(rx + (tx - rx) * s, ry + (ty - ry) * s, rz + (tz - rz) * s);
+      uvs.push(t, 0, t, 1);
+    }
+    for (var j = 0; j < rays; j++) {
+      var a = j * 2;
+      idx.push(a, a + 1, a + 2, a + 2, a + 1, a + 3);
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return new THREE.Mesh(g, newFinMat());
+  }
+
+  // おびれ（ふたつに わかれた かたち）
+  var tailFin = polyFin([0, 0.02, -3.28], [
+    [0, 0.30, -3.44], [0, 0.72, -3.82], [0, 0.99, -4.34], [0, 0.74, -4.46],
+    [0, 0.34, -4.02], [0, 0.05, -3.74],
+    [0, -0.30, -4.00], [0, -0.73, -4.42], [0, -0.95, -4.28],
+    [0, -0.66, -3.78], [0, -0.26, -3.42]
+  ]);
+  fishGroup.add(tailFin);
+  var tailBase = tailFin.geometry.attributes.position.array.slice(0);
+
+  var dorsal = ribbonFin([0, 0.44, 0.16], [0, 0.22, -1.46],
+                         [0, 0.90, -0.10], [0, 0.38, -1.56], 11, 0.09, 0.16);
+  fishGroup.add(dorsal);
+  var dorsalBase = dorsal.geometry.attributes.position.array.slice(0);
+
+  var anal = ribbonFin([0, -0.30, -0.98], [0, -0.15, -2.02],
+                       [0, -0.64, -1.18], [0, -0.24, -2.10], 9, 0.09, -0.12);
+  fishGroup.add(anal);
+  var analBase = anal.geometry.attributes.position.array.slice(0);
+
+  var PEC = [
+    [0.12, -0.02, -0.10], [0.36, -0.07, -0.24], [0.54, -0.14, -0.40],
+    [0.57, -0.21, -0.54], [0.42, -0.23, -0.56], [0.22, -0.18, -0.44], [0.07, -0.09, -0.26]
+  ];
+  function mirrorX(a) { return a.map(function (p) { return [-p[0], p[1], p[2]]; }); }
+  var pecL = polyFin([0, 0, 0], PEC);
+  pecL.position.set(0.46, -0.30, 0.22);
+  fishGroup.add(pecL);
+  var pecR = polyFin([0, 0, 0], mirrorX(PEC));
+  pecR.position.set(-0.46, -0.30, 0.22);
+  fishGroup.add(pecR);
+
+  // はらびれ
+  var PEL = [
+    [0.05, -0.08, -0.12], [0.16, -0.22, -0.28], [0.18, -0.34, -0.44],
+    [0.09, -0.33, -0.46], [0.02, -0.20, -0.30]
+  ];
+  var pelL = polyFin([0, 0, 0], PEL);
+  pelL.position.set(0.20, -0.46, -0.55);
+  fishGroup.add(pelL);
+  var pelR = polyFin([0, 0, 0], mirrorX(PEL));
+  pelR.position.set(-0.20, -0.46, -0.55);
+  fishGroup.add(pelR);
+
+  // かお（でこぼこ）
+  var FSEG = 56;
+  function gauss(a) { return Math.exp(-a * a); }
+  function faceRelief(u, v) {
+    var rr = u * u + v * v;
+    var base = Math.sqrt(Math.max(0, 1 - rr));
+    var nose = 0.52 * gauss(u / 0.17) * gauss((v + 0.02) / 0.30);
+    var nostril = -0.10 * (gauss((Math.abs(u) - 0.12) / 0.045) * gauss((v + 0.21) / 0.055));
+    var brow = 0.12 * gauss((Math.abs(u) - 0.33) / 0.22) * gauss((v - 0.27) / 0.12);
+    var eye = -0.07 * gauss((Math.abs(u) - 0.33) / 0.15) * gauss((v - 0.10) / 0.10);
+    var cheek = 0.11 * gauss((Math.abs(u) - 0.47) / 0.25) * gauss((v + 0.09) / 0.26);
+    var lip = 0.085 * gauss(u / 0.30) * gauss((v + 0.43) / 0.085);
+    var chin = 0.06 * gauss(u / 0.26) * gauss((v + 0.70) / 0.17);
+    var under = -0.05 * gauss(u / 0.30) * gauss((v + 0.55) / 0.06);
+    return base * 1.0 + nose + nostril + brow + eye + cheek + lip + chin + under;
+  }
+
+  function buildFace() {
+    var pos = [], uvs = [], idx = [];
+    for (var i = 0; i <= FSEG; i++) {
+      var vv = -1 + 2 * i / FSEG;
+      for (var j = 0; j <= FSEG; j++) {
+        var uu = -1 + 2 * j / FSEG;
+        var rr = Math.sqrt(uu * uu + vv * vv);
+        var cu = uu, cvv = vv;
+        if (rr > 1) { cu = uu / rr; cvv = vv / rr; }   // ふちに よせる
+        var z = faceRelief(cu, cvv);
+        pos.push(cu * HRX, cvv * HRY, z * HRZ);
+        uvs.push((cu + 1) / 2, (cvv + 1) / 2);
+      }
+    }
+    for (var a = 0; a < FSEG; a++) {
+      for (var b = 0; b < FSEG; b++) {
+        var A = a * (FSEG + 1) + b, B = A + FSEG + 1;
+        idx.push(A, B, A + 1, A + 1, B, B + 1);
+      }
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
+  }
+
+  var faceGeo = buildFace();
+  var faceBase = faceGeo.attributes.position.array.slice(0);
+  var faceMesh = new THREE.Mesh(faceGeo, new THREE.MeshStandardMaterial({
+    map: faceTex, transparent: true, roughness: 0.56, metalness: 0,
+    side: THREE.DoubleSide, alphaTest: 0.02
+  }));
+  faceMesh.position.z = HEAD_Z;
+  faceMesh.scale.set(1.035, 1.035, 1.02);
+  fishGroup.add(faceMesh);
+
+  // あたまの いろを しゃしんに あわせる
+  function setHeadTint() {
+    try {
+      var d = fctx.getImageData(FW * 0.5 - 40, FH * 0.62, 80, 60).data;
+      var r = 0, g = 0, b = 0, n = 0;
+      for (var i = 0; i < d.length; i += 4) {
+        if (d[i + 3] > 200) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+      }
+      if (n > 50) {
+        SKIN_RGB[0] = (r / n) / 255; SKIN_RGB[1] = (g / n) / 255; SKIN_RGB[2] = (b / n) / 255;
+        applyTint();
+      }
+    } catch (e) {}
+  }
+
+  drawDefaultFace();
+
+  /* ================= くちの うごき ================= */
+  var mouthOpen = 0, mouthTarget = 0;
+  var JAW_V = -0.34;          // くちの すぐ うえ。ここから したが あごとして さがる
+  function applyMouth() {
+    var p = faceGeo.attributes.position.array;
+    for (var i = 0; i < p.length; i += 3) {
+      var vy = faceBase[i + 1] / HRY;
+      var hu = faceBase[i] / HRX;
+      p[i] = faceBase[i];
+      p[i + 1] = faceBase[i + 1];
+      p[i + 2] = faceBase[i + 2];
+      if (mouthOpen > 0.002 && vy < JAW_V) {
+        var a = (JAW_V - vy) / (1 + JAW_V);
+        if (a > 1) a = 1;
+        var k = Math.sqrt(a) * Math.exp(-(hu * hu) / 0.45);   // まんなかほど よく さがる
+        p[i + 1] = faceBase[i + 1] - mouthOpen * 0.26 * k * HRY;
+        p[i + 2] = faceBase[i + 2] + mouthOpen * 0.07 * k * HRZ;
+        // くちの ふちを へこませて、あいた ところを くらく みせる
+        var d = (vy + 0.42) / 0.10;
+        p[i + 2] -= mouthOpen * 0.20 * HRZ * Math.exp(-d * d) * Math.exp(-(hu * hu) / 0.30);
+      }
+    }
+    faceGeo.attributes.position.needsUpdate = true;
+    faceGeo.computeVertexNormals();
+  }
+
+  /* ================= からだの うねり ================= */
+  function bendAt(z, phase, amp) {
+    return Math.sin(phase - (z - NOSE_Z) * 1.05) * amp * Math.pow(Math.max(0, (NOSE_Z - z) / 5.20), 1.5);
+  }
+  // からだ：えらの こきゅう ＋ あたまの むき ＋ およぎの うねり
+  var NECK_Z = 0.22;
+  function deformBody(phase, amp, yaw, pitch, gill) {
+    var p = bodyGeo.attributes.position.array;
+    var cyw = Math.cos(yaw), syw = Math.sin(yaw);
+    var cpt = Math.cos(pitch), spt = Math.sin(pitch);
+    for (var i = 0, v = 0; i < p.length; i += 3, v++) {
+      var x0 = bodyBase[i], y0 = bodyBase[i + 1], z0 = bodyBase[i + 2];
+      var g = 1 + gill * gillW[v];
+      var x = x0 * g, y = y0 * g, z = z0;
+      var w = headBlend[v];
+      if (w > 0.002) {
+        var dz = z0 - NECK_Z;
+        var xr = x * cyw + dz * syw;
+        var zr = -x * syw + dz * cyw;
+        var yr = y * cpt - zr * spt;
+        var zr2 = y * spt + zr * cpt;
+        x += (xr - x) * w;
+        y += (yr - y) * w;
+        z += ((zr2 + NECK_Z) - z0) * w;
+      }
+      p[i] = x + bendAt(z0, phase, amp);
+      p[i + 1] = y;
+      p[i + 2] = z;
+    }
+    bodyGeo.attributes.position.needsUpdate = true;
+  }
+
+  function deform(geo, base, time, amp) {
+    var p = geo.attributes.position.array;
+    for (var i = 0; i < p.length; i += 3) {
+      var z = base[i + 2];
+      p[i] = base[i] + bendAt(z, time, amp);
+      p[i + 1] = base[i + 1];
+      p[i + 2] = z;
+    }
+    geo.attributes.position.needsUpdate = true;
+  }
+
+  /* ================= およぎ ================= */
+  var V3 = THREE.Vector3;
+  var swimPhase = 0;
+  var fish = {
+    pos: new V3(0.6, 0.1, -2.6),
+    vel: new V3(0, 0, 0.3),
+    target: new V3(0, 0, -3),
+    speed: 0.6, until: 0, roll: 0, peer: 0,
+    poke: 0, gulp: 0, doze: 0,
+    headYaw: 0, headYawT: 0, headPitch: 0, headPitchT: 0, glanceAt: 0,
+    speaking: false, faceCam: 0,
+    wp: [], wi: 0, name: 'cruise'
+  };
+  function rr(a, b) { return a + Math.random() * (b - a); }
+  function rp(x0, x1, y0, y1, z0, z1) { return new V3(rr(x0, x1), rr(y0, y1), rr(z0, z1)); }
+
+  // およぎの パターン。１つ えらんで、とおりみちを ならべる
+  function setBehavior(now) {
+    fish.wp.length = 0; fish.wi = 0;
+    fish.peer = 0; fish.poke = 0; fish.gulp = 0; fish.doze = 0;
+    var r = Math.random(), i;
+    if (r < 0.11) {                        // ① およぎまわる（たかさも かえる）
+      fish.name = 'cruise';
+      fish.wp.push(rp(-4.5, 4.5, 0.4, 2.3, -7, -1));
+      fish.wp.push(rp(-4.5, 4.5, -1.5, 0.2, -7, -1));
+      fish.wp.push(rp(-4.5, 4.5, 0.6, 2.2, -7, -1));
+      fish.speed = rr(0.5, 0.85); fish.until = now + rr(11000, 16000);
+    } else if (r < 0.21) {                 // ② おくまで およいで いって、もどって くる
+      fish.name = 'far';
+      fish.wp.push(rp(-6.5, 6.5, 0.6, 2.3, -13, -10));
+      fish.wp.push(rp(-6.5, 6.5, -1.4, 0.4, -14, -10.5));
+      fish.wp.push(rp(-4, 4, -1.2, 1.8, -7, -3.5));
+      fish.speed = rr(1.0, 1.5); fish.until = now + rr(18000, 26000);
+    } else if (r < 0.30) {                 // ③ め の まえを ななめに よこぎる
+      fish.name = 'pass';
+      var s = Math.random() < 0.5 ? -1 : 1;
+      fish.wp.push(new V3(s * 7.2, rr(-1.4, 2.2), rr(-2.6, -1.2)));
+      fish.wp.push(new V3(-s * 7.2, rr(-1.4, 2.2), rr(-1.8, 0.0)));
+      fish.speed = rr(1.25, 1.75); fish.until = now + 16000;
+    } else if (r < 0.36) {                 // ④ その ばで ゆらゆら する
+      fish.name = 'hover';
+      for (i = 0; i < 3; i++) fish.wp.push(fish.pos.clone().add(rp(-1.0, 1.0, -1.1, 1.1, -1.0, 1.0)));
+      fish.speed = 0.22; fish.until = now + rr(8000, 13000);
+    } else if (r < 0.45) {                 // ⑤ すなを つついて えさを さがす
+      fish.name = 'forage';
+      var fx = rr(-4, 4), fz = rr(-7, -1.5);
+      fish.wp.push(new V3(fx, -1.30, fz));
+      for (i = 0; i < 4; i++) fish.wp.push(new V3(fx + rr(-0.9, 0.9), rr(-1.55, -1.25), fz + rr(-0.9, 0.9)));
+      fish.poke = 1;
+      fish.speed = 0.30; fish.until = now + rr(11000, 17000);
+    } else if (r < 0.52) {                 // ⑥ みずの うえを つつく
+      fish.name = 'gulp';
+      var gx = rr(-3, 3), gz = rr(-6, -1.5);
+      fish.wp.push(new V3(gx, 2.45, gz));
+      fish.wp.push(new V3(gx + rr(-0.7, 0.7), 2.5, gz + rr(-0.7, 0.7)));
+      fish.gulp = 1;
+      fish.speed = 0.55; fish.until = now + rr(9000, 13000);
+    } else if (r < 0.59) {                 // ⑦ ぐるりと まわる（たてに まわることも ある）
+      fish.name = 'circle';
+      var cx = rr(-2.5, 2.5), cz = rr(-6, -2), cyy = rr(0.1, 0.8), rad = rr(1.6, 2.6);
+      var vert = Math.random() < 0.5;
+      var ccw = Math.random() < 0.5 ? 1 : -1;
+      for (i = 0; i < 8; i++) {
+        var a2 = ccw * i / 8 * Math.PI * 2;
+        if (vert) fish.wp.push(new V3(cx + Math.cos(a2) * rad * 0.55, cyy + Math.sin(a2) * rad * 0.9, cz));
+        else fish.wp.push(new V3(cx + Math.cos(a2) * rad, cyy + rr(-0.5, 0.5), cz + Math.sin(a2) * rad));
+      }
+      fish.speed = rr(0.9, 1.3); fish.until = now + rr(16000, 23000);
+    } else if (r < 0.65) {                 // ⑧ そこの ほうへ もぐる
+      fish.name = 'dive';
+      fish.wp.push(rp(-4, 4, 1.0, 2.0, -7, -2));
+      fish.wp.push(rp(-4, 4, -1.60, -1.2, -7, -2));
+      fish.wp.push(rp(-4, 4, -1.65, -1.3, -6, -2));
+      fish.speed = rr(0.4, 0.75); fish.until = now + rr(12000, 17000);
+    } else if (r < 0.71) {                 // ⑨ うえへ のぼる
+      fish.name = 'rise';
+      fish.wp.push(rp(-3.5, 3.5, -1.4, -0.8, -7, -2));
+      fish.wp.push(rp(-3.5, 3.5, 1.6, 2.6, -7, -2));
+      fish.wp.push(rp(-3.5, 3.5, 1.3, 2.4, -5, -1.5));
+      fish.speed = rr(0.5, 0.85); fish.until = now + rr(11000, 15000);
+    } else if (r < 0.77) {                 // ⑩ ガラスごしに のぞきこむ
+      fish.name = 'peer';
+      fish.wp.push(new V3(rr(-0.9, 0.9), rr(-0.2, 0.5), rr(1.0, 1.5)));
+      fish.peer = 1;
+      fish.speed = 0.75; fish.until = now + rr(8000, 11000);
+    } else if (r < 0.81) {                 // ⑪ きゅうに ふりむく
+      fish.name = 'uturn';
+      var back = new V3(-fish.vel.x, -fish.vel.y + rr(-0.8, 0.8), -fish.vel.z);
+      if (back.lengthSq() < 0.02) back.set(0, 0, -1);
+      back.normalize().multiplyScalar(rr(3.0, 5.0));
+      fish.wp.push(fish.pos.clone().add(back));
+      fish.speed = rr(1.0, 1.45); fish.until = now + 8000;
+    } else if (r < 0.85) {                 // ⑫ びっくりして とびだす
+      fish.name = 'dart';
+      var fwd = fish.vel.clone();
+      if (fwd.lengthSq() < 0.02) fwd.set(0, 0, -1);
+      fwd.normalize();
+      fwd.x += rr(-0.7, 0.7); fwd.y += rr(-0.9, 0.9);
+      fwd.normalize().multiplyScalar(rr(4.0, 6.0));
+      fish.wp.push(fish.pos.clone().add(fwd));
+      fish.speed = rr(2.0, 2.8); fish.until = now + 5000;
+    } else if (r < 0.89) {                 // ⑬ くさの そばで あそぶ
+      fish.name = 'nuzzle';
+      var pl = plantList.length ? plantList[(Math.random() * plantList.length) | 0] : null;
+      var bx = pl ? pl.position.x * 0.72 : rr(-3, 3);
+      var bz = pl ? Math.max(-8, pl.position.z) : rr(-6, -2);
+      for (i = 0; i < 4; i++) fish.wp.push(new V3(bx + rr(-0.9, 0.9), rr(-1.0, 0.6), bz + rr(-0.9, 0.9)));
+      fish.speed = rr(0.30, 0.55); fish.until = now + rr(12000, 18000);
+    } else if (r < 0.92) {                 // ⑭ そこで うとうと する
+      fish.name = 'doze';
+      var dx = rr(-3, 3), dz = rr(-6, -2);
+      for (i = 0; i < 3; i++) fish.wp.push(new V3(dx + rr(-0.4, 0.4), rr(-1.5, -1.2), dz + rr(-0.4, 0.4)));
+      fish.doze = 1;
+      fish.speed = 0.12; fish.until = now + rr(14000, 22000);
+    } else if (r < 0.96) {                 // ⑮ うえと したを いったり きたり
+      fish.name = 'yoyo';
+      var yx = rr(-3.5, 3.5), yz = rr(-7, -1.5);
+      for (i = 0; i < 5; i++) {
+        fish.wp.push(new V3(
+          yx + rr(-0.9, 0.9),
+          (i % 2 === 0) ? rr(1.7, 2.6) : rr(-1.6, -0.9),
+          yz + rr(-0.9, 0.9)
+        ));
+      }
+      fish.speed = rr(0.7, 1.1); fish.until = now + rr(16000, 24000);
+    } else {                                // ⑯ らせんを えがいて のぼる
+      fish.name = 'spiral';
+      var sx = rr(-2.5, 2.5), sz = rr(-6.5, -2), srad = rr(1.3, 2.2);
+      var sdir = Math.random() < 0.5 ? 1 : -1;
+      var down = Math.random() < 0.5;
+      for (i = 0; i < 10; i++) {
+        var a3 = sdir * i / 10 * Math.PI * 4;
+        var k3 = down ? (1 - i / 9) : (i / 9);
+        fish.wp.push(new V3(sx + Math.cos(a3) * srad, -1.4 + k3 * 3.9, sz + Math.sin(a3) * srad));
+      }
+      fish.speed = rr(0.8, 1.2); fish.until = now + rr(20000, 28000);
+    }
+    fish.target.copy(fish.wp[0]);
+  }
+  function newTarget(now) { setBehavior(now); }
+  setBehavior(0);
+
+  var tmpQ = new THREE.Quaternion(), tmpM = new THREE.Matrix4(), UPV = new V3(0, 1, 0);
+  var rollQ = new THREE.Quaternion(), FWD = new V3(0, 0, 1);
+  var qCam = new THREE.Quaternion(), mCam = new THREE.Matrix4();
+  var lookV = new V3(), dirV = new V3();
+  var prevYaw = 0;
+
+  function updateFish(now, dt) {
+    if (fish.speaking) {
+      fish.target.set(0, 0.05, 0.85);
+      fish.speed = 1.3;
+      fish.faceCam += (1 - fish.faceCam) * Math.min(1, dt * 1.6);
+    } else {
+      fish.faceCam += ((fish.peer ? 0.9 : 0) - fish.faceCam) * Math.min(1, dt * 1.1);
+      var reach = fish.speed < 0.4 ? 0.42 : 0.95;
+      if (fish.pos.distanceTo(fish.target) < reach) {
+        fish.wi++;
+        if (fish.wi < fish.wp.length) fish.target.copy(fish.wp[fish.wi]);
+        else setBehavior(now);
+      }
+      if (now > fish.until) setBehavior(now);
+    }
+
+    // あたまを うごかして あたりを みる
+    if (fish.speaking || fish.peer) {
+      fish.headYawT = 0; fish.headPitchT = 0;
+    } else if (fish.poke) {
+      fish.headYawT = Math.sin(now * 0.0013) * 0.25;
+      fish.headPitchT = 0.36 + Math.sin(now * 0.006) * 0.22;   // すなを つつく
+    } else if (fish.gulp) {
+      fish.headYawT = 0;
+      fish.headPitchT = -0.34 - Math.abs(Math.sin(now * 0.005)) * 0.16;
+    } else if (fish.doze) {
+      fish.headYawT = Math.sin(now * 0.0005) * 0.12;
+      fish.headPitchT = 0.10;
+    } else if (now > fish.glanceAt) {
+      fish.headYawT = rr(-0.55, 0.55);
+      fish.headPitchT = rr(-0.20, 0.20);
+      fish.glanceAt = now + rr(1800, 5200);
+    }
+    fish.headYaw += (fish.headYawT - fish.headYaw) * Math.min(1, dt * 2.2);
+    fish.headPitch += (fish.headPitchT - fish.headPitch) * Math.min(1, dt * 2.2);
+
+    dirV.copy(fish.target).sub(fish.pos);
+    var dist = dirV.length();
+    if (dist > 0.0001) dirV.multiplyScalar(1 / dist);
+    dirV.multiplyScalar(Math.min(fish.speed, 0.35 + dist * 1.1));
+    fish.vel.lerp(dirV, Math.min(1, dt * (fish.speaking ? 1.8 : 1.0)));
+    fish.pos.addScaledVector(fish.vel, dt);
+
+    // みずそうの そとへ でない
+    fish.pos.x = Math.max(-7.6, Math.min(7.6, fish.pos.x));
+    fish.pos.y = Math.max(-1.72, Math.min(2.85, fish.pos.y));
+    fish.pos.z = Math.max(-14.5, Math.min(2.3, fish.pos.z));
+    fishGroup.position.copy(fish.pos);
+
+    // まがる とき、からだを かたむける
+    var yaw = Math.atan2(fish.vel.x, fish.vel.z);
+    var dYaw = yaw - prevYaw;
+    while (dYaw > Math.PI) dYaw -= Math.PI * 2;
+    while (dYaw < -Math.PI) dYaw += Math.PI * 2;
+    prevYaw = yaw;
+    var wantRoll = Math.max(-0.42, Math.min(0.42, -dYaw / Math.max(dt, 0.004) * 0.16));
+    fish.roll += (wantRoll - fish.roll) * Math.min(1, dt * 1.6);
+
+    // むき
+    lookV.copy(fish.pos);
+    if (fish.vel.lengthSq() > 0.0004) lookV.add(fish.vel); else lookV.z += 1;
+    tmpM.lookAt(lookV, fish.pos, UPV);
+    tmpQ.setFromRotationMatrix(tmpM);
+    if (fish.faceCam > 0.001) {
+      mCam.lookAt(camera.position, fish.pos, UPV);
+      qCam.setFromRotationMatrix(mCam);
+      tmpQ.slerp(qCam, fish.faceCam);
+    }
+    rollQ.setFromAxisAngle(FWD, fish.roll);
+    tmpQ.multiply(rollQ);
+    fishGroup.quaternion.slerp(tmpQ, Math.min(1, dt * 2.2));
+  }
+
+  /* ================= おと ================= */
+  var actx = null, ambientGain = null;
+  function initAudio() {
+    if (actx) return;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try {
+      actx = new AC();
+      var len = actx.sampleRate * 2;
+      var buf = actx.createBuffer(1, len, actx.sampleRate);
+      var d = buf.getChannelData(0);
+      for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.5;
+      var src = actx.createBufferSource(); src.buffer = buf; src.loop = true;
+      var lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320;
+      ambientGain = actx.createGain(); ambientGain.gain.value = 0.014;
+      src.connect(lp); lp.connect(ambientGain); ambientGain.connect(actx.destination);
+      src.start();
+    } catch (e) { actx = null; }
+  }
+  function bubbleSound() {
+    if (!actx || !opt.bubble) return;
+    try {
+      var now = actx.currentTime;
+      var o = actx.createOscillator(); o.type = 'sine';
+      o.frequency.setValueAtTime(380 + Math.random() * 260, now);
+      o.frequency.exponentialRampToValueAtTime(900 + Math.random() * 500, now + 0.08);
+      var g = actx.createGain();
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(0.05, now + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+      o.connect(g); g.connect(actx.destination);
+      o.start(now); o.stop(now + 0.14);
+    } catch (e) {}
+  }
+
+  /* ================= こえ ================= */
+  var jaVoices = [], jaVoice = null, userPickedVoice = false;
+  var voiceSel = document.getElementById('voiceSel');
+
+  // たんまつに ある こえに てんすうを つけて、いちばん よいものを えらぶ
+  function voiceScore(v) {
+    var n = (v.name || '').toLowerCase();
+    if (!/^ja/i.test(v.lang || '')) return -1;
+    var s = 10;
+    if ((v.lang || '') === 'ja-JP') s += 5;
+    if (n.indexOf('eloquence') >= 0) s -= 60;          // きかいっぽい ふるい こえ
+    if (n.indexOf('compact') >= 0) s -= 25;
+    if (n.indexOf('google') >= 0) s += 50;
+    if (n.indexOf('premium') >= 0 || n.indexOf('enhanced') >= 0 ||
+        n.indexOf('プレミアム') >= 0 || n.indexOf('拡張') >= 0) s += 40;
+    if (n.indexOf('siri') >= 0) s += 30;
+    if (/kyoko|otoya|hattori|o-ren|oren|きょうこ|おとや/.test(n)) s += 25;
+    if (/nanami|ayumi|haruka|ichiro|keita|mayu|naoki/.test(n)) s += 20;
+    if (v.localService === false) s += 6;
+    return s;
+  }
+
+  function fillVoiceSelect() {
+    if (!voiceSel) return;
+    voiceSel.innerHTML = '';
+    var o0 = document.createElement('option');
+    o0.value = 'auto';
+    o0.textContent = 'たんまつに　おまかせ';
+    voiceSel.appendChild(o0);
+    for (var i = 0; i < jaVoices.length; i++) {
+      var o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = jaVoices[i].name;
+      voiceSel.appendChild(o);
+    }
+    var idx = jaVoice ? jaVoices.indexOf(jaVoice) : -1;
+    voiceSel.value = idx >= 0 ? String(idx) : 'auto';
+  }
+
+  function buildVoiceList() {
+    if (!('speechSynthesis' in window)) { fillVoiceSelect(); return; }
+    var vs = speechSynthesis.getVoices() || [];
+    var list = [];
+    for (var i = 0; i < vs.length; i++) if (voiceScore(vs[i]) >= 0) list.push(vs[i]);
+    list.sort(function (a, b) { return voiceScore(b) - voiceScore(a); });
+    jaVoices = list;
+    // よい こえが みつからない ときは たんまつに まかせる（iPad は いちらんが あてに ならない）
+    if (!userPickedVoice) jaVoice = (list.length && voiceScore(list[0]) >= 35) ? list[0] : null;
+    fillVoiceSelect();
+  }
+  if ('speechSynthesis' in window) {
+    buildVoiceList();
+    speechSynthesis.addEventListener('voiceschanged', buildVoiceList);
+  } else {
+    fillVoiceSelect();
+  }
+
+  function applyVoiceStyle(u) {
+    if (opt.weird) { u.rate = 0.80; u.pitch = 0.48; }   // シーマンっぽい へんな こえ
+    else { u.rate = 0.93; u.pitch = 1.00; }             // ふつうに はなす
+    u.volume = 1;
+  }
+
+  function speak(text, onDone) {
+    var plain = text.replace(/[　 ]/g, '');
+    var finished = false;
+    function finish() { if (finished) return; finished = true; clearTimeout(timer); onDone(); }
+    var timer = setTimeout(finish, 1600 + plain.length * 230);
+    if (!opt.voice || !('speechSynthesis' in window)) return;
+    try {
+      speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(plain);
+      u.lang = 'ja-JP';
+      if (jaVoice) u.voice = jaVoice;   // えらべない ときは たんまつの きほんの こえ
+      applyVoiceStyle(u);
+      u.onend = finish;
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+
+  /* ================= しゃべる ================= */
+  var capEl = document.getElementById('caption');
+  var capSpan = capEl.querySelector('span');
+  var lastIdx = -1, speakTimer = null, running = false;
+
+  function showCaption(t) {
+    if (!opt.caption) { capEl.classList.add('off'); return; }
+    capEl.classList.remove('off');
+    capSpan.textContent = t;
+    capEl.classList.add('on');
+  }
+  function hideCaption() { capEl.classList.remove('on'); }
+
+  function sayOne() {
+    if (!running) return;
+    lastIdx = (lastIdx + 1) % LINES.length;   // はなしの じゅんばんどおりに
+    var i = lastIdx;
+    fish.speaking = true;
+    showCaption(LINES[i]);
+    speak(LINES[i], function () {
+      if (!running) return;
+      fish.speaking = false;
+      hideCaption();
+      newTarget(performance.now());
+      speakTimer = setTimeout(sayOne, 7000 + Math.random() * 7000);
+    });
+  }
+  function startTalking() { running = true; clearTimeout(speakTimer); speakTimer = setTimeout(sayOne, 2400); }
+  function stopTalking() {
+    running = false; clearTimeout(speakTimer);
+    fish.speaking = false; hideCaption();
+    if ('speechSynthesis' in window) { try { speechSynthesis.cancel(); } catch (e) {} }
+  }
+
+  /* ================= ループ ================= */
+  var clock = new THREE.Clock();
+  var cauT = 0, nextBub = 0, bubbleAt = 0;
+  var noseV = new THREE.Vector3();
+
+  function frame() {
+    requestAnimationFrame(frame);
+    var dt = Math.min(0.05, clock.getDelta());
+    var t = clock.elapsedTime;
+    var mo = opt.motion ? 1 : 0.3;
+
+    // からだ（はやく およぐほど しっぽを はやく つよく ふる）
+    var sp = fish.vel.length();
+    swimPhase += dt * (3.0 + Math.min(1.8, sp) * 4.8);
+    var amp = (0.12 + Math.min(1.6, sp) * 0.23) * mo;
+    var gill = 0.055 * (0.5 + 0.5 * Math.sin(t * 2.4)) * (opt.motion ? 1 : 0.4);
+    var hy = fish.headYaw, hp = fish.headPitch;
+    deformBody(swimPhase, amp, hy, hp, gill);
+    bodyGeo.computeVertexNormals();
+    deform(tailFin.geometry, tailBase, swimPhase, amp);
+    deform(dorsal.geometry, dorsalBase, swimPhase, amp);
+    deform(anal.geometry, analBase, swimPhase, amp);
+
+    // かおは あたまと いっしょに むきを かえる
+    var dzf = HEAD_Z - NECK_Z;
+    var chy = Math.cos(hy), shy = Math.sin(hy);
+    var chp = Math.cos(hp), shp = Math.sin(hp);
+    var fz1 = dzf * chy;
+    faceMesh.position.set(
+      dzf * shy + bendAt(HEAD_Z, swimPhase, amp),
+      -fz1 * shp,
+      NECK_Z + fz1 * chp
+    );
+    faceMesh.rotation.set(hp, hy, 0);
+
+    var pbx = bendAt(0.35, swimPhase, amp);
+    var flap = Math.sin(swimPhase * 0.8) * (0.20 + 0.24 * Math.min(1, sp)) * mo;
+    pecL.position.x = 0.46 + pbx; pecR.position.x = -0.46 + pbx;
+    pecL.rotation.z = -0.45 + flap;
+    pecR.rotation.z = 0.45 - flap;
+    var plx = bendAt(-0.55, swimPhase, amp);
+    pelL.position.x = 0.20 + plx; pelR.position.x = -0.20 + plx;
+    pelL.rotation.z = -0.22 + flap * 0.45;
+    pelR.rotation.z = 0.22 - flap * 0.45;
+
+    // くちから あわ（しゃべる／みずを つつく／すなを つつく）
+    bubbleAt -= dt;
+    if (bubbleAt <= 0) {
+      var want = fish.speaking ? 0.50 : (fish.gulp ? 0.35 : (fish.poke ? 0.55 : 0));
+      if (want > 0) {
+        fishGroup.updateMatrixWorld(true);
+        var mz = dzf + 0.72, my = -0.25;
+        var mz2 = mz * chy;
+        noseV.set(mz * shy, my * chp - mz2 * shp, NECK_Z + my * shp + mz2 * chp);
+        noseV.applyMatrix4(fishGroup.matrixWorld);
+        emitBubbles(noseV.x, noseV.y, noseV.z, fish.poke ? 2 : 3);
+        bubbleAt = want;
+      } else {
+        bubbleAt = 0.5;
+      }
+    }
+
+    // くち
+    if (fish.speaking) mouthTarget = 0.34 + 0.66 * Math.abs(Math.sin(t * 6.0 + Math.sin(t * 1.7) * 1.2));
+    else if (fish.gulp) mouthTarget = 0.45 + 0.55 * Math.abs(Math.sin(t * 4.2));
+    else mouthTarget = 0;
+    mouthOpen += (mouthTarget - mouthOpen) * Math.min(1, dt * 18);
+    applyMouth();
+
+    updateFish(performance.now(), dt);
+    fishGroup.position.y = fish.pos.y + Math.sin(t * 0.85) * 0.17 * mo;   // たえず すこし うきしずみする
+
+    // カメラ（ゆっくり まわりこみ、しゃべるとき すこし よる）
+    var orb = opt.motion ? 1 : 0;
+    var camZ = (fish.speaking ? 4.55 : 5.2) + Math.cos(t * 0.082) * 0.45 * orb;
+    camera.position.z += (camZ - camera.position.z) * Math.min(1, dt * 1.1);
+    camera.position.x += (Math.sin(t * 0.082) * 1.15 * orb - camera.position.x) * Math.min(1, dt * 0.9);
+    camera.position.y += ((0.15 + Math.sin(t * 0.137) * 0.32 * orb) - camera.position.y) * Math.min(1, dt * 0.8);
+    camera.lookAt(fish.pos.x * 0.30, fish.pos.y * 0.45, -0.5);
+
+    // みずくさ
+    for (var pi2 = 0; pi2 < plantList.length; pi2++) {
+      var pl = plantList[pi2];
+      var arr = pl.geometry.attributes.position.array;
+      var bs = pl.userData.base;
+      for (var k = 0; k < arr.length; k += 3) {
+        var ry = bs[k + 1] / pl.userData.h;
+        arr[k] = bs[k] + Math.sin(t * 0.9 + pl.userData.ph + ry * 2.4) * 0.42 * ry * ry * mo;
+        arr[k + 2] = Math.cos(t * 0.7 + pl.userData.ph) * 0.18 * ry * ry * mo;
+      }
+      pl.geometry.attributes.position.needsUpdate = true;
+    }
+
+    // ひかりの すじ
+    for (var bi2 = 0; bi2 < beams.children.length; bi2++) {
+      var bmm = beams.children[bi2];
+      bmm.rotation.z = Math.sin(t * 0.22 + bmm.userData.ph) * 0.14;
+      bmm.material.opacity = 0.28 + 0.18 * (0.5 + 0.5 * Math.sin(t * 0.5 + bmm.userData.ph));
+      bmm.lookAt(camera.position.x, bmm.position.y, camera.position.z);
+      bmm.rotation.x = 0;
+    }
+
+    // みずの もよう
+    cauT += dt * (opt.motion ? 1 : 0.3);
+    if (cauT - Math.floor(cauT * 20) / 20 >= 0) { drawCaustics(cauT); cauTex.needsUpdate = true; }
+    cauTex.offset.x = cauT * 0.012;
+
+    // つぶ・あわ
+    var mp = moteGeo.attributes.position.array;
+    for (var m2 = 0; m2 < MOTES; m2++) {
+      mp[m2 * 3 + 1] += moteSpd[m2] * dt * mo * 0.5;
+      mp[m2 * 3] += Math.sin(t * 0.5 + m2) * dt * 0.05 * mo;
+      if (mp[m2 * 3 + 1] > FLOOR_Y + 9) mp[m2 * 3 + 1] = FLOOR_Y;
+    }
+    moteGeo.attributes.position.needsUpdate = true;
+
+    var bp = bubGeo.attributes.position.array;
+    for (var b2 = 0; b2 < BUBS; b2++) {
+      bp[b2 * 3 + 1] += bubSpd[b2] * dt * mo;
+      bp[b2 * 3] += Math.sin(t * 2.2 + b2) * dt * 0.09 * mo;
+      if (bp[b2 * 3 + 1] > FLOOR_Y + 8.5) resetBubble(b2);
+    }
+    bubGeo.attributes.position.needsUpdate = true;
+
+    if (performance.now() > nextBub) {
+      if (Math.random() < 0.5) bubbleSound();
+      nextBub = performance.now() + 1800 + Math.random() * 3400;
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  /* ================= がめん ================= */
+  var startScreen = document.getElementById('start');
+  var setupScreen = document.getElementById('setup');
+  var secret = document.getElementById('secret');
+
+  document.getElementById('go').addEventListener('click', function () {
+    startScreen.hidden = true;
+    initAudio();
+    if (actx && actx.state === 'suspended') actx.resume();
+    if ('speechSynthesis' in window) {
+      try { var w = new SpeechSynthesisUtterance(' '); w.volume = 0; speechSynthesis.speak(w); } catch (e) {}
+    }
+    startTalking();
+  });
+
+  var ringArc = document.getElementById('ringArc');
+  var holdRAF = null, holdStart = 0, HOLD = 1200;
+  function holdTick(now) {
+    var p = Math.min(1, (now - holdStart) / HOLD);
+    ringArc.setAttribute('stroke-dashoffset', String(151 * (1 - p)));
+    if (p >= 1) { endHold(); openSetup(); return; }
+    holdRAF = requestAnimationFrame(holdTick);
+  }
+  function endHold() {
+    if (holdRAF) cancelAnimationFrame(holdRAF);
+    holdRAF = null;
+    ringArc.setAttribute('stroke-dashoffset', '151');
+  }
+  secret.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    if (!startScreen.hidden || !setupScreen.hidden) return;
+    holdStart = performance.now();
+    holdRAF = requestAnimationFrame(holdTick);
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) { secret.addEventListener(ev, endHold); });
+
+  function openSetup() {
+    stopTalking();
+    setupScreen.hidden = false;
+    secret.hidden = true;
+    buildVoiceList();
+    requestAnimationFrame(fitCrop);
+  }
+  function closeSetup() {
+    setupScreen.hidden = true;
+    secret.hidden = false;
+    startTalking();
+  }
+  document.getElementById('cancel').addEventListener('click', closeSetup);
+
+  /* ================= かおを わくに あわせる ================= */
+  var stage = document.getElementById('stage');
+  var crop = document.getElementById('crop');
+  var cctx = crop.getContext('2d');
+  var emptyState = document.getElementById('emptyState');
+  var hint = document.getElementById('hint');
+  var applyBtn = document.getElementById('apply');
+  var repickBtn = document.getElementById('repick');
+  var fileInput = document.getElementById('file');
+
+  var img = null, px = 0, py = 0;
+  var scX = 1, scY = 1, fitS = 1;          // たて と よこ を べつべつに もつ
+  var rngX = document.getElementById('rngX');
+  var rngY = document.getElementById('rngY');
+  var stretchRow = document.getElementById('stretchRow');
+  function clampS(v) { return Math.max(0.03, Math.min(16, v)); }
+  function syncRange() {
+    if (!rngX || !fitS) return;
+    rngX.value = String(Math.round(Math.max(40, Math.min(300, scX / fitS * 100))));
+    rngY.value = String(Math.round(Math.max(40, Math.min(300, scY / fitS * 100))));
+  }
+  var cw = 0, ch = 0;
+  var ell = { cx: 0, cy: 0, rx: 0, ry: 0 };
+
+  function fitCrop() {
+    var dp = Math.min(window.devicePixelRatio || 1, 2);
+    cw = stage.clientWidth; ch = stage.clientHeight;
+    if (!cw || !ch) return;
+    crop.width = Math.round(cw * dp); crop.height = Math.round(ch * dp);
+    cctx.setTransform(dp, 0, 0, dp, 0, 0);
+    ell.ry = Math.min(ch * 0.40, cw * 0.46);
+    ell.rx = ell.ry * (FW / FH);
+    ell.cx = cw / 2; ell.cy = ch / 2;
+    if (!img) { px = ell.cx; py = ell.cy; }
+    drawCrop();
+  }
+  window.addEventListener('resize', function () { if (!setupScreen.hidden) fitCrop(); });
+
+  function drawCrop() {
+    if (!cw) return;
+    cctx.clearRect(0, 0, cw, ch);
+    cctx.fillStyle = '#071c22'; cctx.fillRect(0, 0, cw, ch);
+    if (img) {
+      var dw = img.width * scX, dh = img.height * scY;
+      cctx.drawImage(img, px - dw / 2, py - dh / 2, dw, dh);
+    }
+    cctx.save();
+    cctx.fillStyle = 'rgba(4,23,27,.74)';
+    cctx.beginPath();
+    cctx.rect(0, 0, cw, ch);
+    cctx.ellipse(ell.cx, ell.cy, ell.rx, ell.ry, 0, 0, 6.2832, true);
+    cctx.fill('evenodd');
+    cctx.restore();
+    cctx.beginPath();
+    cctx.ellipse(ell.cx, ell.cy, ell.rx, ell.ry, 0, 0, 6.2832);
+    cctx.strokeStyle = 'rgba(143,227,207,.9)'; cctx.lineWidth = 2.5; cctx.stroke();
+
+    // ３Ｄの かおが め と くち を おいている ばしょ（しゃしんが はいってから だす）
+    if (!img) return;
+    var eyeY = ell.cy - 0.10 * ell.ry;
+    var eyeDx = 0.33 * ell.rx;
+    var mouthY = ell.cy + 0.43 * ell.ry;
+    var GUIDE = 'rgba(255,206,92,.95)';
+    cctx.strokeStyle = GUIDE; cctx.lineWidth = 2.2;
+    for (var e = -1; e <= 1; e += 2) {
+      cctx.beginPath();
+      cctx.ellipse(ell.cx + e * eyeDx, eyeY, ell.rx * 0.17, ell.ry * 0.058, 0, 0, 6.2832);
+      cctx.stroke();
+    }
+    cctx.beginPath();
+    cctx.moveTo(ell.cx - ell.rx * 0.36, mouthY);
+    cctx.lineTo(ell.cx + ell.rx * 0.36, mouthY);
+    cctx.stroke();
+    // みじかい たてせん（まんなかの めやす）
+    cctx.setLineDash([4, 7]);
+    cctx.beginPath();
+    cctx.moveTo(ell.cx, ell.cy - ell.ry * 0.9);
+    cctx.lineTo(ell.cx, ell.cy + ell.ry * 0.9);
+    cctx.strokeStyle = 'rgba(255,206,92,.32)'; cctx.lineWidth = 1.2; cctx.stroke();
+    cctx.setLineDash([]);
+    // ことば
+    cctx.fillStyle = GUIDE;
+    cctx.font = '700 ' + Math.max(12, Math.round(ell.ry * 0.085)) + 'px "Zen Maru Gothic", sans-serif';
+    cctx.textAlign = 'right'; cctx.textBaseline = 'middle';
+    cctx.fillText('め', ell.cx - ell.rx - 10, eyeY);
+    cctx.fillText('くち', ell.cx - ell.rx - 10, mouthY);
+  }
+
+  document.getElementById('pick').addEventListener('click', function () { fileInput.click(); });
+  repickBtn.addEventListener('click', function () { fileInput.click(); });
+
+  fileInput.addEventListener('change', function () {
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    var url = URL.createObjectURL(f);
+    var im = new Image();
+    im.onload = function () {
+      img = im;
+      fitS = Math.max((ell.rx * 2.1) / im.width, (ell.ry * 2.1) / im.height);
+      scX = scY = fitS;
+      px = ell.cx; py = ell.cy;
+      syncRange();
+      emptyState.hidden = true; hint.hidden = false;
+      applyBtn.hidden = false; repickBtn.hidden = false; stretchRow.hidden = false;
+      drawCrop();
+      URL.revokeObjectURL(url);
+    };
+    im.onerror = function () { URL.revokeObjectURL(url); };
+    im.src = url;
+    fileInput.value = '';
+  });
+
+  var pts = new Map();
+  var startDx = 0, startDy = 0, startScX = 1, startScY = 1, startMid = null, startP = null;
+  function ptArray() { var o = []; pts.forEach(function (v) { o.push(v); }); return o; }
+
+  stage.addEventListener('pointerdown', function (e) {
+    if (!img) return;
+    try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2) beginPinch();
+    else startP = { x: px, y: py, ex: e.clientX, ey: e.clientY };
+  });
+  stage.addEventListener('pointermove', function (e) {
+    if (!img || !pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    var arr = ptArray();
+    if (arr.length >= 2 && startMid && startP) {
+      // よこに ひろげれば よこに、たてに ひろげれば たてに のびる
+      var dx2 = Math.abs(arr[0].x - arr[1].x);
+      var dy2 = Math.abs(arr[0].y - arr[1].y);
+      var mid = { x: (arr[0].x + arr[1].x) / 2, y: (arr[0].y + arr[1].y) / 2 };
+      if (startDx > 28) scX = clampS(startScX * (dx2 / startDx));
+      if (startDy > 28) scY = clampS(startScY * (dy2 / startDy));
+      px = startP.x + (mid.x - startMid.x);
+      py = startP.y + (mid.y - startMid.y);
+      syncRange();
+    } else if (arr.length === 1 && startP) {
+      px = startP.x + (e.clientX - startP.ex);
+      py = startP.y + (e.clientY - startP.ey);
+    }
+    drawCrop();
+  });
+  function beginPinch() {
+    var arr = ptArray();
+    startDx = Math.abs(arr[0].x - arr[1].x);
+    startDy = Math.abs(arr[0].y - arr[1].y);
+    startScX = scX; startScY = scY;
+    startMid = { x: (arr[0].x + arr[1].x) / 2, y: (arr[0].y + arr[1].y) / 2 };
+    startP = { x: px, y: py, ex: startMid.x, ey: startMid.y };
+  }
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) {
+    stage.addEventListener(ev, function (e) {
+      pts.delete(e.pointerId);
+      startDx = startDy = 0;
+      var arr = ptArray();
+      if (arr.length === 1) startP = { x: px, y: py, ex: arr[0].x, ey: arr[0].y };
+      else if (arr.length === 0) startP = null;
+    });
+  });
+  stage.addEventListener('wheel', function (e) {
+    if (!img) return;
+    e.preventDefault();
+    var f = e.deltaY < 0 ? 1.08 : 0.93;
+    if (e.shiftKey) scX = clampS(scX * f);        // よこ だけ
+    else if (e.altKey) scY = clampS(scY * f);     // たて だけ
+    else { scX = clampS(scX * f); scY = clampS(scY * f); }
+    syncRange();
+    drawCrop();
+  }, { passive: false });
+
+  function onRange() {
+    if (!img || !fitS) return;
+    scX = clampS(fitS * (+rngX.value) / 100);
+    scY = clampS(fitS * (+rngY.value) / 100);
+    drawCrop();
+  }
+  if (rngX) { rngX.addEventListener('input', onRange); rngY.addEventListener('input', onRange); }
+  document.getElementById('resetFit').addEventListener('click', function () {
+    if (!img) return;
+    scX = scY = fitS;
+    px = ell.cx; py = ell.cy;
+    syncRange();
+    drawCrop();
+  });
+
+  applyBtn.addEventListener('click', function () {
+    if (!img) return;
+    var k = (FW / 2) / ell.rx;
+    fctx.clearRect(0, 0, FW, FH);
+    fctx.save();
+    fctx.beginPath(); fctx.ellipse(FW / 2, FH / 2, FW / 2 - 2, FH / 2 - 2, 0, 0, 6.2832); fctx.clip();
+    var dw = img.width * scX * k, dh = img.height * scY * k;
+    var cx = (px - ell.cx) * k + FW / 2, cy = (py - ell.cy) * k + FH / 2;
+    fctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
+    fctx.restore();
+    featherEdge();
+    faceTex.needsUpdate = true;
+    setHeadTint();
+    closeSetup();
+  });
+
+  /* ---- トグル ---- */
+  function toggle(id, key, after) {
+    var b = document.getElementById(id);
+    b.addEventListener('click', function () {
+      opt[key] = !opt[key];
+      b.setAttribute('aria-pressed', String(opt[key]));
+      if (after) after();
+    });
+  }
+  toggle('tgVoice', 'voice', function () {
+    if (!opt.voice && 'speechSynthesis' in window) { try { speechSynthesis.cancel(); } catch (e) {} }
+  });
+  toggle('tgWeird', 'weird');
+
+  if (voiceSel) {
+    voiceSel.addEventListener('change', function () {
+      userPickedVoice = true;
+      jaVoice = voiceSel.value === 'auto' ? null : (jaVoices[+voiceSel.value] || null);
+    });
+  }
+  document.getElementById('voiceTest').addEventListener('click', function () {
+    if (!('speechSynthesis' in window)) return;
+    try {
+      speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance('こんにちは。ぼくの こえは、これだよ。');
+      u.lang = 'ja-JP';
+      if (jaVoice) u.voice = jaVoice;
+      applyVoiceStyle(u);
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  });
+  toggle('tgCap', 'caption', function () {
+    if (!opt.caption) capEl.classList.add('off'); else capEl.classList.remove('off');
+  });
+  toggle('tgBubble', 'bubble', function () {
+    if (ambientGain) ambientGain.gain.value = opt.bubble ? 0.014 : 0;
+  });
+  toggle('tgMotion', 'motion');
+  document.getElementById('tgClear').addEventListener('click', function () {
+    drawDefaultFace();
+    img = null;
+    emptyState.hidden = false; hint.hidden = true;
+    applyBtn.hidden = true; repickBtn.hidden = true; stretchRow.hidden = true;
+    drawCrop();
+  });
+
+  /* ================= はじめ ================= */
+  resize();
+  frame();
+})();
+</script>
