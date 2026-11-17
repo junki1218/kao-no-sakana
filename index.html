@@ -179,6 +179,7 @@ input[type=file]{display:none}
   <div class="toggles">
     <button class="tg" id="tgVoice" aria-pressed="true">こえ</button>
     <button class="tg" id="tgCap" aria-pressed="true">じまく</button>
+    <button class="tg" id="tgMusic" aria-pressed="true">おんがく</button>
     <button class="tg" id="tgBubble" aria-pressed="true">あわの　おと</button>
     <button class="tg" id="tgMotion" aria-pressed="true">うごき</button>
     <button class="tg" id="tgClear">かおを　けす</button>
@@ -212,7 +213,7 @@ input[type=file]{display:none}
     'アクアパークしながわは　イルカショーを　みたよ。'
   ];
 
-  var opt = { voice: true, caption: true, bubble: true, motion: true, weird: false };
+  var opt = { voice: true, caption: true, bubble: true, motion: true, weird: false, music: true };
   if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) opt.motion = false;
 
   /* ================= れんだらー ================= */
@@ -642,9 +643,9 @@ input[type=file]{display:none}
       fctx.beginPath(); fctx.ellipse(ex, 232, 50, 14, 0, Math.PI, 0, true);
       fctx.strokeStyle = 'rgba(78,58,42,.34)'; fctx.lineWidth = 8; fctx.stroke();
     }
-    fctx.beginPath(); fctx.moveTo(256, 304); fctx.quadraticCurveTo(243, 374, 259, 387);
+    fctx.beginPath(); fctx.moveTo(256, 308); fctx.quadraticCurveTo(242, 392, 260, 408);
     fctx.strokeStyle = 'rgba(88,64,44,.45)'; fctx.lineWidth = 8; fctx.lineCap = 'round'; fctx.stroke();
-    fctx.beginPath(); fctx.moveTo(202, 445); fctx.quadraticCurveTo(256, 467, 310, 445);
+    fctx.beginPath(); fctx.moveTo(202, 490); fctx.quadraticCurveTo(256, 512, 310, 490);
     fctx.strokeStyle = 'rgba(78,50,38,.6)'; fctx.lineWidth = 9; fctx.stroke();
     fctx.restore();
     featherEdge();
@@ -883,14 +884,14 @@ input[type=file]{display:none}
   function faceRelief(u, v) {
     var rr = u * u + v * v;
     var base = Math.sqrt(Math.max(0, 1 - rr));
-    var nose = 0.52 * gauss(u / 0.17) * gauss((v + 0.02) / 0.30);
-    var nostril = -0.10 * (gauss((Math.abs(u) - 0.12) / 0.045) * gauss((v + 0.21) / 0.055));
+    var nose = 0.52 * gauss(u / 0.17) * gauss((v + 0.06) / 0.33);
+    var nostril = -0.10 * (gauss((Math.abs(u) - 0.12) / 0.045) * gauss((v + 0.28) / 0.055));
     var brow = 0.12 * gauss((Math.abs(u) - 0.33) / 0.22) * gauss((v - 0.27) / 0.12);
     var eye = -0.07 * gauss((Math.abs(u) - 0.33) / 0.15) * gauss((v - 0.10) / 0.10);
-    var cheek = 0.11 * gauss((Math.abs(u) - 0.47) / 0.25) * gauss((v + 0.09) / 0.26);
-    var lip = 0.085 * gauss(u / 0.30) * gauss((v + 0.43) / 0.085);
-    var chin = 0.06 * gauss(u / 0.26) * gauss((v + 0.70) / 0.17);
-    var under = -0.05 * gauss(u / 0.30) * gauss((v + 0.55) / 0.06);
+    var cheek = 0.11 * gauss((Math.abs(u) - 0.47) / 0.25) * gauss((v + 0.12) / 0.26);
+    var lip = 0.085 * gauss(u / 0.30) * gauss((v + 0.53) / 0.085);
+    var chin = 0.06 * gauss(u / 0.26) * gauss((v + 0.78) / 0.15);
+    var under = -0.05 * gauss(u / 0.30) * gauss((v + 0.65) / 0.06);
     return base * 1.0 + nose + nostril + brow + eye + cheek + lip + chin + under;
   }
 
@@ -951,7 +952,7 @@ input[type=file]{display:none}
 
   /* ================= くちの うごき ================= */
   var mouthOpen = 0, mouthTarget = 0;
-  var JAW_V = -0.34;          // くちの すぐ うえ。ここから したが あごとして さがる
+  var JAW_V = -0.44;          // くちの すぐ うえ。ここから したが あごとして さがる
   function applyMouth() {
     var p = faceGeo.attributes.position.array;
     for (var i = 0; i < p.length; i += 3) {
@@ -967,7 +968,7 @@ input[type=file]{display:none}
         p[i + 1] = faceBase[i + 1] - mouthOpen * 0.26 * k * HRY;
         p[i + 2] = faceBase[i + 2] + mouthOpen * 0.07 * k * HRZ;
         // くちの ふちを へこませて、あいた ところを くらく みせる
-        var d = (vy + 0.42) / 0.10;
+        var d = (vy + 0.52) / 0.10;
         p[i + 2] -= mouthOpen * 0.20 * HRZ * Math.exp(-d * d) * Math.exp(-(hu * hu) / 0.30);
       }
     }
@@ -1274,6 +1275,86 @@ input[type=file]{display:none}
     } catch (e) {}
   }
 
+  /* ================= BGM（おんがく） =================
+     おとの ファイルは もたない。その ばで つくる。
+     ゆっくり かわる わおん ＋ ときどき なる すずの おと。 */
+  var musicGain = null, musicTarget = -1, bgm = null, chordTimer = null, bellTimer = null;
+  var CHORDS = [
+    [110.00, 261.63, 329.63],   // Am
+    [87.31, 220.00, 261.63],   // F
+    [130.81, 329.63, 392.00],   // C
+    [98.00, 246.94, 293.66]    // G
+  ];
+  var BELLS = [440.00, 523.25, 587.33, 659.25, 783.99, 880.00];
+
+  function startMusic() {
+    if (!actx || bgm) return;
+    try {
+      var master = actx.createGain(); master.gain.value = 0.0001;
+      var lp = actx.createBiquadFilter(); lp.type = 'lowpass';
+      lp.frequency.value = 1500; lp.Q.value = 0.4;
+      master.connect(lp); lp.connect(actx.destination);
+      // やまびこ（みずの なかっぽさ）
+      var dly = actx.createDelay(1.6); dly.delayTime.value = 0.44;
+      var fb = actx.createGain(); fb.gain.value = 0.33;
+      var wet = actx.createGain(); wet.gain.value = 0.36;
+      lp.connect(dly); dly.connect(fb); fb.connect(dly); dly.connect(wet); wet.connect(actx.destination);
+
+      var oscs = [];
+      for (var i = 0; i < 3; i++) {
+        var o = actx.createOscillator();
+        o.type = i === 0 ? 'sine' : 'triangle';
+        o.frequency.value = CHORDS[0][i];
+        o.detune.value = (i - 1) * 4;
+        var g = actx.createGain(); g.gain.value = i === 0 ? 0.50 : 0.20;
+        o.connect(g); g.connect(master);
+        o.start();
+        oscs.push(o);
+      }
+      musicGain = master;
+      bgm = { master: master, oscs: oscs };
+
+      var ci = 0;
+      (function nextChord() {
+        if (!bgm) return;
+        var c = CHORDS[ci % CHORDS.length]; ci++;
+        for (var k = 0; k < 3; k++) {
+          try { bgm.oscs[k].frequency.setTargetAtTime(c[k], actx.currentTime, 1.8); } catch (e) {}
+        }
+        chordTimer = setTimeout(nextChord, 15000);
+      })();
+
+      (function nextBell() {
+        bellTimer = setTimeout(function () {
+          if (bgm && opt.music && actx) {
+            try {
+              var now = actx.currentTime;
+              var o2 = actx.createOscillator(); o2.type = 'sine';
+              o2.frequency.value = BELLS[(Math.random() * BELLS.length) | 0];
+              var g2 = actx.createGain();
+              g2.gain.setValueAtTime(0.0001, now);
+              g2.gain.exponentialRampToValueAtTime(0.11, now + 0.04);
+              g2.gain.exponentialRampToValueAtTime(0.0001, now + 2.8);
+              o2.connect(g2); g2.connect(bgm.master);
+              o2.start(now); o2.stop(now + 3.0);
+            } catch (e) {}
+          }
+          nextBell();
+        }, 2800 + Math.random() * 5600);
+      })();
+    } catch (e) { bgm = null; }
+  }
+
+  // しゃべる あいだは おんがくを さげる
+  function updateMusicLevel() {
+    if (!musicGain || !actx) return;
+    var want = opt.music ? (fish.speaking ? 0.030 : 0.085) : 0.0001;
+    if (want !== musicTarget) {
+      musicTarget = want;
+      try { musicGain.gain.setTargetAtTime(want, actx.currentTime, 0.7); } catch (e) {}
+    }
+  }
+
   /* ================= こえ ================= */
   var jaVoices = [], jaVoice = null, userPickedVoice = false;
   var voiceSel = document.getElementById('voiceSel');
@@ -1516,6 +1597,7 @@ input[type=file]{display:none}
       if (Math.random() < 0.5) bubbleSound();
       nextBub = performance.now() + 1800 + Math.random() * 3400;
     }
+    updateMusicLevel();
 
     renderer.render(scene, camera);
   }
@@ -1529,6 +1611,7 @@ input[type=file]{display:none}
     startScreen.hidden = true;
     initAudio();
     if (actx && actx.state === 'suspended') actx.resume();
+    startMusic();
     if ('speechSynthesis' in window) {
       try { var w = new SpeechSynthesisUtterance(' '); w.volume = 0; speechSynthesis.speak(w); } catch (e) {}
     }
@@ -1631,7 +1714,7 @@ input[type=file]{display:none}
     if (!img) return;
     var eyeY = ell.cy - 0.10 * ell.ry;
     var eyeDx = 0.33 * ell.rx;
-    var mouthY = ell.cy + 0.43 * ell.ry;
+    var mouthY = ell.cy + 0.53 * ell.ry;
     var GUIDE = 'rgba(255,206,92,.95)';
     cctx.strokeStyle = GUIDE; cctx.lineWidth = 2.2;
     for (var e = -1; e <= 1; e += 2) {
@@ -1806,6 +1889,7 @@ input[type=file]{display:none}
   toggle('tgCap', 'caption', function () {
     if (!opt.caption) capEl.classList.add('off'); else capEl.classList.remove('off');
   });
+  toggle('tgMusic', 'music');
   toggle('tgBubble', 'bubble', function () {
     if (ambientGain) ambientGain.gain.value = opt.bubble ? 0.014 : 0;
   });
