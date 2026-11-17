@@ -167,6 +167,10 @@ input[type=file]{display:none}
     <button class="tg" id="resetFit">もとに　もどす</button>
   </div>
   <div class="row">
+    <label class="rng"><span>はなの　たかさ</span><input type="range" id="rngNose" min="0" max="200" value="100"></label>
+    <button class="tg" id="resetNose">ふつうに　もどす</button>
+  </div>
+  <div class="row">
     <button class="ghost" id="repick" hidden>べつの　しゃしん</button>
     <button class="ghost" id="cancel">もどる</button>
     <button class="big" id="apply" hidden style="padding:16px 36px;font-size:20px">これで　いい</button>
@@ -1039,12 +1043,13 @@ input[type=file]{display:none}
 
   // かお（でこぼこ）
   var FSEG = 56;
+  var NOSE_K = 1.0;            // はなの たかさ（せってい で かえられる。1 = ふつう）
   function gauss(a) { return Math.exp(-a * a); }
   function faceRelief(u, v) {
     var rr = u * u + v * v;
     var base = Math.sqrt(Math.max(0, 1 - rr));
-    var nose = 0.52 * gauss(u / 0.17) * gauss((v + 0.06) / 0.33);
-    var nostril = -0.10 * (gauss((Math.abs(u) - 0.12) / 0.045) * gauss((v + 0.28) / 0.055));
+    var nose = 0.52 * NOSE_K * gauss(u / 0.17) * gauss((v + 0.06) / 0.33);
+    var nostril = -0.10 * NOSE_K * (gauss((Math.abs(u) - 0.12) / 0.045) * gauss((v + 0.28) / 0.055));
     var brow = 0.12 * gauss((Math.abs(u) - 0.33) / 0.22) * gauss((v - 0.27) / 0.12);
     var eye = -0.07 * gauss((Math.abs(u) - 0.33) / 0.15) * gauss((v - 0.10) / 0.10);
     var cheek = 0.11 * gauss((Math.abs(u) - 0.47) / 0.25) * gauss((v + 0.12) / 0.26);
@@ -1054,34 +1059,51 @@ input[type=file]{display:none}
     return base * 1.0 + nose + nostril + brow + eye + cheek + lip + chin + under;
   }
 
-  // くちの せん で うえと したに きりわける（この ぎょう で ちょうど わかれる）
-  var JAW_ROW = 16;
-  var JAW_V = -1 + 2 * JAW_ROW / FSEG;
+  // くち：ガイドの くちの せん（この ぎょう）で かおを うえと したに わける。
+  // くちの りょうはしは とじた まま、まんなかほど くちびるが はなれて すこし ひらく
+  var MOUTH_ROW = 13;
+  var MOUTH_V = -1 + 2 * MOUTH_ROW / FSEG;   // ≒ -0.536（ガイドの くちと おなじ）
+  var MOUTH_W = 0.34;                          // くちの はば
+  var LIP_UP = 0.035, LIP_DOWN = 0.10;         // いちばん ひらいた ときの うわくちびる／したくちびる
 
-  function buildFacePart(i0, i1) {
-    var pos = [], uvs = [], idx = [];
+  function faceCoord(i, j) {
+    var vv = -1 + 2 * i / FSEG, uu = -1 + 2 * j / FSEG;
+    var rr = Math.sqrt(uu * uu + vv * vv);
+    if (rr > 1) { uu /= rr; vv /= rr; }          // ふちに よせる
+    return [uu, vv];
+  }
+  function facePositions(i0, i1) {
+    var pos = new Float32Array((i1 - i0 + 1) * (FSEG + 1) * 3), p = 0;
     for (var i = i0; i <= i1; i++) {
-      var vv = -1 + 2 * i / FSEG;
       for (var j = 0; j <= FSEG; j++) {
-        var uu = -1 + 2 * j / FSEG;
-        var rr = Math.sqrt(uu * uu + vv * vv);
-        var cu = uu, cvv = vv;
-        if (rr > 1) { cu = uu / rr; cvv = vv / rr; }   // ふちに よせる
-        var z = faceRelief(cu, cvv);
-        pos.push(cu * HRX, cvv * HRY, z * HRZ);
-        uvs.push((cu + 1) / 2, (cvv + 1) / 2);
+        var c = faceCoord(i, j);
+        pos[p++] = c[0] * HRX; pos[p++] = c[1] * HRY; pos[p++] = faceRelief(c[0], c[1]) * HRZ;
       }
     }
-    for (var a = 0; a < i1 - i0; a++) {
-      for (var b = 0; b < FSEG; b++) {
-        var A = a * (FSEG + 1) + b, B = A + FSEG + 1;
+    return pos;
+  }
+  function gridIndex(rows, cols) {
+    var idx = [];
+    for (var a = 0; a < rows; a++) {
+      for (var b = 0; b < cols; b++) {
+        var A = a * (cols + 1) + b, B = A + cols + 1;
         idx.push(A, B, A + 1, A + 1, B, B + 1);
       }
     }
+    return idx;
+  }
+  function buildFacePart(i0, i1) {
+    var uvs = [];
+    for (var i = i0; i <= i1; i++) {
+      for (var j = 0; j <= FSEG; j++) {
+        var c = faceCoord(i, j);
+        uvs.push((c[0] + 1) / 2, (c[1] + 1) / 2);
+      }
+    }
     var g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('position', new THREE.BufferAttribute(facePositions(i0, i1), 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    g.setIndex(idx);
+    g.setIndex(gridIndex(i1 - i0, FSEG));
     g.computeVertexNormals();
     return g;
   }
@@ -1095,46 +1117,45 @@ input[type=file]{display:none}
   faceGroup.scale.set(1.035, 1.035, 1.02);
   fishGroup.add(faceGroup);
 
-  // うわあご（うごかない）
-  faceGroup.add(new THREE.Mesh(buildFacePart(JAW_ROW, FSEG), faceMat));
+  var faceUpperGeo = buildFacePart(MOUTH_ROW, FSEG);   // くちより うえ
+  var faceLowerGeo = buildFacePart(0, MOUTH_ROW);      // くちより した
+  var upperBase = faceUpperGeo.attributes.position.array.slice(0);
+  var lowerBase = faceLowerGeo.attributes.position.array.slice(0);
+  faceGroup.add(new THREE.Mesh(faceUpperGeo, faceMat));
+  faceGroup.add(new THREE.Mesh(faceLowerGeo, faceMat));
 
-  // したあご：みみの あたりを ちょうつがいに して まわる
-  var HINGE_Y = -0.05 * HRY, HINGE_Z = -0.30 * HRZ;
-  var jawPivot = new THREE.Group();
-  jawPivot.position.set(0, HINGE_Y, HINGE_Z);
-  faceGroup.add(jawPivot);
-  var jawMesh = new THREE.Mesh(buildFacePart(0, JAW_ROW), faceMat);
-  jawMesh.position.set(0, -HINGE_Y, -HINGE_Z);
-  jawPivot.add(jawMesh);
+  // くちの おく：くろい くうどう。くちびるの すぐ うしろに かおの かたちに そって はる
+  var MH_R = 8, MH_C = 18;
+  function mouthHolePositions() {
+    var pos = new Float32Array((MH_R + 1) * (MH_C + 1) * 3), p = 0;
+    for (var i = 0; i <= MH_R; i++) {
+      var vv = MOUTH_V - 0.15 + 0.21 * i / MH_R;
+      for (var j = 0; j <= MH_C; j++) {
+        var uu = MOUTH_W * 1.1 * (-1 + 2 * j / MH_C);
+        pos[p++] = uu * HRX; pos[p++] = vv * HRY; pos[p++] = (faceRelief(uu, vv) - 0.04) * HRZ;
+      }
+    }
+    return pos;
+  }
+  var mouthHoleGeo = new THREE.BufferGeometry();
+  mouthHoleGeo.setAttribute('position', new THREE.BufferAttribute(mouthHolePositions(), 3));
+  mouthHoleGeo.setIndex(gridIndex(MH_R, MH_C));
+  faceGroup.add(new THREE.Mesh(mouthHoleGeo,
+    new THREE.MeshBasicMaterial({ color: 0x060203, side: THREE.DoubleSide })));
 
-  // ---- くちの なか（だれの かおでも おなじ）----
-  function inJaw(y, z) { return [y - HINGE_Y, z - HINGE_Z]; }
-
-  // おくの くらい ところ
-  var cavity = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14),
-    new THREE.MeshStandardMaterial({ color: 0x3a0d10, roughness: 1, metalness: 0 }));
-  cavity.scale.set(HRX * 0.50, HRY * 0.32, HRZ * 0.58);
-  cavity.position.set(0, (JAW_V + 0.05) * HRY, HRZ * 0.38);
-  faceGroup.add(cavity);
-
-  // うえの は
-  var teethMat = new THREE.MeshStandardMaterial({ color: 0xefe9db, roughness: 0.40, metalness: 0 });
-  var upperTeeth = new THREE.Mesh(new THREE.BoxGeometry(HRX * 0.34, HRY * 0.046, HRZ * 0.12), teethMat);
-  upperTeeth.position.set(0, (JAW_V + 0.050) * HRY, HRZ * 0.62);
-  faceGroup.add(upperTeeth);
-
-  // したの は と した（あごに ついて いっしょに うごく）
-  var lt = inJaw((JAW_V - 0.045) * HRY, HRZ * 0.60);
-  var lowerTeeth = new THREE.Mesh(new THREE.BoxGeometry(HRX * 0.30, HRY * 0.042, HRZ * 0.11), teethMat);
-  lowerTeeth.position.set(0, lt[0], lt[1]);
-  jawPivot.add(lowerTeeth);
-
-  var tg = inJaw((JAW_V - 0.11) * HRY, HRZ * 0.42);
-  var tongue = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12),
-    new THREE.MeshStandardMaterial({ color: 0x95534e, roughness: 0.70 }));
-  tongue.scale.set(HRX * 0.30, HRY * 0.070, HRZ * 0.34);
-  tongue.position.set(0, tg[0], tg[1]);
-  jawPivot.add(tongue);
+  // はなの たかさを かえた とき、かおの かたちを つくりなおす
+  function rebuildFace() {
+    upperBase = facePositions(MOUTH_ROW, FSEG);
+    lowerBase = facePositions(0, MOUTH_ROW);
+    faceUpperGeo.attributes.position.array.set(upperBase);
+    faceLowerGeo.attributes.position.array.set(lowerBase);
+    faceUpperGeo.attributes.position.needsUpdate = true;
+    faceLowerGeo.attributes.position.needsUpdate = true;
+    faceUpperGeo.computeVertexNormals();
+    faceLowerGeo.computeVertexNormals();
+    mouthHoleGeo.attributes.position.array.set(mouthHolePositions());
+    mouthHoleGeo.attributes.position.needsUpdate = true;
+  }
 
   // あたまの いろを しゃしんに あわせる
   function setHeadTint() {
@@ -1155,8 +1176,38 @@ input[type=file]{display:none}
 
   /* ================= くちの うごき ================= */
   var mouthOpen = 0, mouthTarget = 0;
+  // くちの はしで 0、まんなかで 1
+  function lipLens(u) {
+    var k = Math.abs(u) / MOUTH_W;
+    return k >= 1 ? 0 : Math.pow(1 - k * k, 1.3);
+  }
   function applyMouth() {
-    jawPivot.rotation.x = mouthOpen * 0.54;   // したあごが さがって くちが あく
+    var up = faceUpperGeo.attributes.position.array;
+    var lo = faceLowerGeo.attributes.position.array;
+    var i, l, dv;
+    var open = mouthOpen > 0.001 ? mouthOpen : 0;
+    for (i = 0; i < up.length; i += 3) {           // うわくちびるは すこし あがる
+      up[i] = upperBase[i]; up[i + 1] = upperBase[i + 1]; up[i + 2] = upperBase[i + 2];
+      if (open) {
+        l = lipLens(upperBase[i] / HRX);
+        if (l > 0) {
+          dv = (upperBase[i + 1] / HRY - MOUTH_V) / 0.09;
+          up[i + 1] += open * LIP_UP * l * Math.exp(-dv * dv) * HRY;
+        }
+      }
+    }
+    for (i = 0; i < lo.length; i += 3) {           // したくちびるは もうすこし さがる
+      lo[i] = lowerBase[i]; lo[i + 1] = lowerBase[i + 1]; lo[i + 2] = lowerBase[i + 2];
+      if (open) {
+        l = lipLens(lowerBase[i] / HRX);
+        if (l > 0) {
+          dv = (MOUTH_V - lowerBase[i + 1] / HRY) / 0.20;
+          lo[i + 1] -= open * LIP_DOWN * l * Math.exp(-dv * dv) * HRY;
+        }
+      }
+    }
+    faceUpperGeo.attributes.position.needsUpdate = true;
+    faceLowerGeo.attributes.position.needsUpdate = true;
   }
 
   /* ================= からだの うねり ================= */
@@ -1898,7 +1949,7 @@ input[type=file]{display:none}
     if (!img) return;
     var eyeY = ell.cy - 0.10 * ell.ry;
     var eyeDx = 0.33 * ell.rx;
-    var mouthY = ell.cy + 0.53 * ell.ry;
+    var mouthY = ell.cy - MOUTH_V * ell.ry;      // ３Ｄの くちが ひらく せんと おなじ
     var GUIDE = 'rgba(255,206,92,.95)';
     cctx.strokeStyle = GUIDE; cctx.lineWidth = 2.2;
     for (var e = -1; e <= 1; e += 2) {
@@ -1907,8 +1958,8 @@ input[type=file]{display:none}
       cctx.stroke();
     }
     cctx.beginPath();
-    cctx.moveTo(ell.cx - ell.rx * 0.36, mouthY);
-    cctx.lineTo(ell.cx + ell.rx * 0.36, mouthY);
+    cctx.moveTo(ell.cx - ell.rx * MOUTH_W, mouthY);
+    cctx.lineTo(ell.cx + ell.rx * MOUTH_W, mouthY);
     cctx.stroke();
     // みじかい たてせん（まんなかの めやす）
     cctx.setLineDash([4, 7]);
@@ -2074,6 +2125,18 @@ input[type=file]{display:none}
     if (!opt.caption) capEl.classList.add('off'); else capEl.classList.remove('off');
   });
   toggle('tgMusic', 'music');
+
+  // はなの たかさ（0% = ひらたい、100% = ふつう、200% = たかい）
+  var rngNose = document.getElementById('rngNose');
+  rngNose.addEventListener('input', function () {
+    NOSE_K = (+rngNose.value) / 100;
+    rebuildFace();
+  });
+  document.getElementById('resetNose').addEventListener('click', function () {
+    rngNose.value = '100';
+    NOSE_K = 1;
+    rebuildFace();
+  });
   toggle('tgBubble', 'bubble', function () {
     if (ambientGain) ambientGain.gain.value = opt.bubble ? 0.014 : 0;
   });
