@@ -125,6 +125,44 @@ button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer}
 .rng{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--fg-dim);letter-spacing:.06em}
 .rng input[type=range]{width:min(150px,30vw);accent-color:#8fe3cf;background:transparent}
 .note{font-size:12.5px;color:var(--fg-dim);text-align:center;line-height:1.8;max-width:620px;margin:0}
+
+/* ---- せりふの へんしゅう ---- */
+.lines{width:min(760px,100%);display:flex;flex-direction:column;gap:10px;
+  border-top:1px solid var(--edge);padding-top:16px}
+.sec-head{display:flex;justify-content:space-between;align-items:baseline;
+  font-weight:700;font-size:17px;letter-spacing:.06em}
+.sec-head small{color:var(--fg-dim);font-weight:500;font-size:13px;font-variant-numeric:tabular-nums}
+.sec-note{margin:0;color:var(--fg-dim);font-size:13px;line-height:1.8}
+#lineList{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.line-item{display:grid;grid-template-columns:26px minmax(0,1fr) 72px 40px;gap:8px;align-items:center}
+.line-item .num{color:var(--fg-dim);text-align:right;font-variant-numeric:tabular-nums;font-size:14px}
+.line-text{min-width:0;width:100%;border:1px solid var(--edge);border-radius:12px;
+  background:rgba(4,23,27,.6);color:var(--fg);font:inherit;font-size:16px;padding:10px 12px}
+.pic-wrap{position:relative;width:72px;height:48px}
+.pic-btn{width:100%;height:100%;border-radius:8px;border:1px dashed var(--edge);
+  background:rgba(4,23,27,.5);color:var(--fg-dim);font-size:12px;letter-spacing:.06em;padding:0;overflow:hidden}
+.pic-btn.has{border:2px solid #d4a93c}
+.pic-btn img{width:100%;height:100%;object-fit:cover;display:block}
+.pic-x{position:absolute;top:-8px;right:-8px;width:24px;height:24px;border-radius:50%;
+  border:1px solid rgba(212,169,60,.8);background:#14262a;color:#f1dfa4;font-size:14px;line-height:1;padding:0}
+.icon-btn{width:40px;height:40px;border-radius:50%;border:1px solid var(--edge);
+  background:rgba(4,23,27,.5);color:var(--fg-dim);font-size:18px;line-height:1;padding:0}
+#addLine:disabled{opacity:.4;cursor:default}
+
+/* ---- せりふの がぞう：みぎうえ、きんの わく、すこし すける ---- */
+#picWin{
+  position:fixed;z-index:3;
+  top:calc(env(safe-area-inset-top,0px) + 18px);
+  right:calc(env(safe-area-inset-right,0px) + 18px);
+  width:min(36vw,380px);
+  padding:7px;border-radius:14px;
+  background:linear-gradient(135deg,#f7e48a 0%,#c9952a 28%,#fff0a6 50%,#b07e22 72%,#f0cf62 100%);
+  box-shadow:0 12px 36px rgba(0,0,0,.5),inset 0 0 0 1px rgba(255,255,255,.35);
+  opacity:0;                /* こさは びょうがの ループで 0 → .85 → 0 と うごかす */
+  pointer-events:none;
+}
+#picWin img{display:block;width:100%;height:auto;max-height:min(44vh,380px);object-fit:contain;
+  border-radius:8px;border:2px solid rgba(110,78,18,.55);background:#0b2228}
 input[type=file]{display:none}
 
 #fallback{
@@ -139,6 +177,8 @@ input[type=file]{display:none}
 <canvas id="tank"></canvas>
 
 <div id="caption"><span></span></div>
+
+<div id="picWin" hidden aria-hidden="true"><img id="picImg" alt=""></div>
 
 <button id="secret" aria-label="せんせい よう">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.6.76 1 1.4 1H21a2 2 0 1 1 0 4h-.09c-.64 0-1.2.4-1.51 1Z"/></svg>
@@ -168,6 +208,7 @@ input[type=file]{display:none}
   </div>
   <div class="row">
     <label class="rng"><span>はなの　たかさ</span><input type="range" id="rngNose" min="0" max="200" value="100"></label>
+    <label class="rng"><span>くちの　ひらき</span><input type="range" id="rngMouth" min="0" max="250" value="100"></label>
     <button class="tg" id="resetNose">ふつうに　もどす</button>
   </div>
   <div class="row">
@@ -188,12 +229,19 @@ input[type=file]{display:none}
     <button class="tg" id="tgMotion" aria-pressed="true">うごき</button>
     <button class="tg" id="tgClear">かおを　けす</button>
   </div>
-  <p class="note">しゃしんは　この　たんまつの　そとに　でません。ほぞんも　しません。</p>
+  <section class="lines" aria-labelledby="linesHead">
+    <div class="sec-head"><span id="linesHead">せりふ</span><small id="lineCount">10 / 10</small></div>
+    <p class="sec-note">うえから　じゅんばんに　はなします。がぞうを　つけると、はなして　いる　あいだ　みぎうえに　でます。</p>
+    <ol id="lineList"></ol>
+    <div class="row"><button class="tg" id="addLine">＋　せりふを　ふやす</button></div>
+  </section>
+  <p class="note">しゃしんと　がぞうは　この　たんまつの　そとに　でません。ほぞんも　しません。<br>せりふの　もじだけ　この　たんまつに　おぼえます。</p>
 </div>
 
 <div id="fallback">この　たんまつでは　３Ｄが　うごきません。<br>ほかの　ブラウザで　ひらいて　みて　ください。</div>
 
 <input type="file" id="file" accept="image/*">
+<input type="file" id="lineFile" accept="image/*">
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -204,7 +252,7 @@ input[type=file]{display:none}
 
   /* ================= せりふ ================= */
   // しゅうがくりょこうの ふりかえり。じゅんばんどおりに はなす
-  var LINES = [
+  var DEFAULT_LINES = [
     'とうきょうに　しゅうがくりょこうに　いったんだ。',
     'しんかんせんからは　ふじさんが　みえたよ。',
     'すかいつりーは　ひとが　たくさん　いたよ。',
@@ -1065,6 +1113,7 @@ input[type=file]{display:none}
   var MOUTH_V = -1 + 2 * MOUTH_ROW / FSEG;   // ≒ -0.536（ガイドの くちと おなじ）
   var MOUTH_W = 0.34;                          // くちの はば
   var LIP_UP = 0.035, LIP_DOWN = 0.10;         // いちばん ひらいた ときの うわくちびる／したくちびる
+  var MOUTH_K = 1.0;                           // くちの たての ひらき（せってい で かえられる。0〜2.5）
 
   function faceCoord(i, j) {
     var vv = -1 + 2 * i / FSEG, uu = -1 + 2 * j / FSEG;
@@ -1125,11 +1174,11 @@ input[type=file]{display:none}
   faceGroup.add(new THREE.Mesh(faceLowerGeo, faceMat));
 
   // くちの おく：くろい くうどう。くちびるの すぐ うしろに かおの かたちに そって はる
-  var MH_R = 8, MH_C = 18;
+  var MH_R = 14, MH_C = 18;    // いちばん おおきく ひらいても くろく みえる はんい
   function mouthHolePositions() {
     var pos = new Float32Array((MH_R + 1) * (MH_C + 1) * 3), p = 0;
     for (var i = 0; i <= MH_R; i++) {
-      var vv = MOUTH_V - 0.15 + 0.21 * i / MH_R;
+      var vv = MOUTH_V - 0.30 + 0.40 * i / MH_R;
       for (var j = 0; j <= MH_C; j++) {
         var uu = MOUTH_W * 1.1 * (-1 + 2 * j / MH_C);
         pos[p++] = uu * HRX; pos[p++] = vv * HRY; pos[p++] = (faceRelief(uu, vv) - 0.04) * HRZ;
@@ -1192,7 +1241,7 @@ input[type=file]{display:none}
         l = lipLens(upperBase[i] / HRX);
         if (l > 0) {
           dv = (upperBase[i + 1] / HRY - MOUTH_V) / 0.09;
-          up[i + 1] += open * LIP_UP * l * Math.exp(-dv * dv) * HRY;
+          up[i + 1] += open * LIP_UP * MOUTH_K * l * Math.exp(-dv * dv) * HRY;
         }
       }
     }
@@ -1202,7 +1251,7 @@ input[type=file]{display:none}
         l = lipLens(lowerBase[i] / HRX);
         if (l > 0) {
           dv = (MOUTH_V - lowerBase[i + 1] / HRY) / 0.20;
-          lo[i + 1] -= open * LIP_DOWN * l * Math.exp(-dv * dv) * HRY;
+          lo[i + 1] -= open * LIP_DOWN * MOUTH_K * l * Math.exp(-dv * dv) * HRY;
         }
       }
     }
@@ -1682,16 +1731,69 @@ input[type=file]{display:none}
   }
   function hideCaption() { capEl.classList.remove('on'); }
 
+  /* ---- せりふの いちらん（さいだい 10こ）----
+     もじは この たんまつに おぼえる。がぞうは おぼえない（とじると きえる） */
+  var MAX_LINES = 10;
+  var LINES_KEY = 'kao-no-sakana:lines:v1';
+  var lineItems = [];
+  (function loadLines() {
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem(LINES_KEY) || 'null'); } catch (e) { saved = null; }
+    var src = (Array.isArray(saved) && saved.length) ? saved : DEFAULT_LINES;
+    for (var i = 0; i < src.length && lineItems.length < MAX_LINES; i++) {
+      if (typeof src[i] === 'string') lineItems.push({ text: src[i], url: null });
+    }
+  })();
+  function saveLines() {
+    try {
+      localStorage.setItem(LINES_KEY, JSON.stringify(lineItems.map(function (l) { return l.text; })));
+    } catch (e) {}
+  }
+  function activeLines() {
+    return lineItems.filter(function (l) { return l.text.replace(/[　 ]/g, '').length > 0; });
+  }
+
+  /* ---- みぎうえの がぞう ---- */
+  var picWin = document.getElementById('picWin');
+  var picImg = document.getElementById('picImg');
+  var PIC_MAX = 0.85;        // いちばん こい とき（すこし すける）
+  var PIC_FADE = 0.8;        // フェードに かける びょう
+  var picAlpha = 0, picTarget = 0;
+  var picStill = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function showPic(url) {
+    if (!url) { hidePic(); return; }
+    picImg.src = url;
+    picWin.hidden = false;
+    picTarget = PIC_MAX;     // せりふの はじまり：フェードイン
+  }
+  function hidePic() { picTarget = 0; }   // せりふの おわり：フェードアウト
+  // まいこま よぶ。こさを すこしずつ ちかづける
+  function updatePic(dt) {
+    if (picAlpha === picTarget) return;
+    var step = (PIC_MAX / PIC_FADE) * dt;
+    picAlpha = picAlpha < picTarget ? Math.min(picTarget, picAlpha + step)
+                                    : Math.max(picTarget, picAlpha - step);
+    var k = picAlpha / PIC_MAX;
+    var e = k * k * (3 - 2 * k);
+    picWin.style.opacity = (PIC_MAX * e).toFixed(3);
+    picWin.style.transform = picStill ? 'none' : 'translateY(' + ((1 - e) * -8).toFixed(1) + 'px)';
+    if (picAlpha === 0) picWin.hidden = true;
+  }
+
   function sayOne() {
     if (!running) return;
-    lastIdx = (lastIdx + 1) % LINES.length;   // はなしの じゅんばんどおりに
-    var i = lastIdx;
+    var list = activeLines();
+    if (!list.length) { speakTimer = setTimeout(sayOne, 5000); return; }
+    lastIdx = (lastIdx + 1) % list.length;   // はなしの じゅんばんどおりに
+    var item = list[lastIdx];
     fish.speaking = true;
-    showCaption(LINES[i]);
-    speak(LINES[i], function () {
+    showCaption(item.text);
+    showPic(item.url);                        // せりふの はじまりで フェードイン
+    speak(item.text, function () {
       if (!running) return;
       fish.speaking = false;
       hideCaption();
+      hidePic();                              // せりふの おわりで フェードアウト
       newTarget(performance.now());
       speakTimer = setTimeout(sayOne, 7000 + Math.random() * 7000);
     });
@@ -1699,7 +1801,7 @@ input[type=file]{display:none}
   function startTalking() { running = true; clearTimeout(speakTimer); speakTimer = setTimeout(sayOne, 2400); }
   function stopTalking() {
     running = false; clearTimeout(speakTimer);
-    fish.speaking = false; hideCaption();
+    fish.speaking = false; hideCaption(); hidePic();
     if ('speechSynthesis' in window) { try { speechSynthesis.cancel(); } catch (e) {} }
   }
 
@@ -1833,6 +1935,7 @@ input[type=file]{display:none}
       nextBub = performance.now() + 1800 + Math.random() * 3400;
     }
     updateMusicLevel();
+    updatePic(dt);
 
     renderer.render(scene, camera);
   }
@@ -1884,6 +1987,7 @@ input[type=file]{display:none}
   function closeSetup() {
     setupScreen.hidden = true;
     secret.hidden = false;
+    lastIdx = -1;            // せりふを なおした あとは 1ばんから はなす
     startTalking();
   }
   document.getElementById('cancel').addEventListener('click', closeSetup);
@@ -2132,11 +2236,112 @@ input[type=file]{display:none}
     NOSE_K = (+rngNose.value) / 100;
     rebuildFace();
   });
+  // くちの たての ひらき（0% = あかない、100% = ふつう、250% = おおきく）
+  var rngMouth = document.getElementById('rngMouth');
+  rngMouth.addEventListener('input', function () {
+    MOUTH_K = (+rngMouth.value) / 100;
+  });
   document.getElementById('resetNose').addEventListener('click', function () {
-    rngNose.value = '100';
-    NOSE_K = 1;
+    rngNose.value = '100'; NOSE_K = 1;
+    rngMouth.value = '100'; MOUTH_K = 1;
     rebuildFace();
   });
+
+  /* ---- せりふの へんしゅう ---- */
+  var lineList = document.getElementById('lineList');
+  var lineCount = document.getElementById('lineCount');
+  var addLineBtn = document.getElementById('addLine');
+  var lineFile = document.getElementById('lineFile');
+  var pickingLine = -1;
+
+  function renderLines() {
+    lineList.innerHTML = '';
+    lineItems.forEach(function (it, i) {
+      var li = document.createElement('li');
+      li.className = 'line-item';
+
+      var num = document.createElement('span');
+      num.className = 'num';
+      num.textContent = String(i + 1);
+
+      var inp = document.createElement('input');
+      inp.type = 'text';
+      inp.className = 'line-text';
+      inp.id = 'line-' + i;
+      inp.maxLength = 60;
+      inp.value = it.text;
+      inp.placeholder = 'わかちがきで　かく';
+      inp.setAttribute('aria-label', (i + 1) + 'ばんの せりふ');
+      inp.addEventListener('input', function () { it.text = inp.value; saveLines(); });
+
+      var wrap = document.createElement('div');
+      wrap.className = 'pic-wrap';
+      var pb = document.createElement('button');
+      pb.type = 'button';
+      pb.className = 'pic-btn' + (it.url ? ' has' : '');
+      pb.setAttribute('aria-label', (i + 1) + 'ばんの がぞうを えらぶ');
+      if (it.url) {
+        var th = document.createElement('img');
+        th.src = it.url; th.alt = '';
+        pb.appendChild(th);
+      } else {
+        pb.textContent = 'がぞう';
+      }
+      pb.addEventListener('click', function () { pickingLine = i; lineFile.click(); });
+      wrap.appendChild(pb);
+      if (it.url) {
+        var px3 = document.createElement('button');
+        px3.type = 'button';
+        px3.className = 'pic-x';
+        px3.textContent = '×';
+        px3.setAttribute('aria-label', (i + 1) + 'ばんの がぞうを はずす');
+        px3.addEventListener('click', function () {
+          URL.revokeObjectURL(it.url); it.url = null; renderLines();
+        });
+        wrap.appendChild(px3);
+      }
+
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'icon-btn';
+      del.textContent = '×';
+      del.setAttribute('aria-label', (i + 1) + 'ばんの せりふを けす');
+      del.addEventListener('click', function () {
+        if (it.url) URL.revokeObjectURL(it.url);
+        lineItems.splice(i, 1);
+        saveLines();
+        renderLines();
+      });
+
+      li.appendChild(num); li.appendChild(inp); li.appendChild(wrap); li.appendChild(del);
+      lineList.appendChild(li);
+    });
+    lineCount.textContent = lineItems.length + ' / ' + MAX_LINES;
+    addLineBtn.disabled = lineItems.length >= MAX_LINES;
+    addLineBtn.textContent = lineItems.length >= MAX_LINES ? 'これいじょう　ふやせません（10こまで）' : '＋　せりふを　ふやす';
+  }
+
+  addLineBtn.addEventListener('click', function () {
+    if (lineItems.length >= MAX_LINES) return;
+    lineItems.push({ text: '', url: null });
+    saveLines();
+    renderLines();
+    var last = document.getElementById('line-' + (lineItems.length - 1));
+    if (last) last.focus();
+  });
+
+  lineFile.addEventListener('change', function () {
+    var f = lineFile.files && lineFile.files[0];
+    lineFile.value = '';
+    var it = lineItems[pickingLine];
+    pickingLine = -1;
+    if (!f || !it) return;
+    if (it.url) URL.revokeObjectURL(it.url);
+    it.url = URL.createObjectURL(f);      // この たんまつの なかだけ。どこにも おくらない
+    renderLines();
+  });
+
+  renderLines();
   toggle('tgBubble', 'bubble', function () {
     if (ambientGain) ambientGain.gain.value = opt.bubble ? 0.014 : 0;
   });
