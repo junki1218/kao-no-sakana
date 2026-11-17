@@ -483,33 +483,100 @@ input[type=file]{display:none}
   scene.add(beams);
 
   // みずくさ
+  // はの もよう（なかすじ・えだすじ・いろの むら）
+  function leafTexture() {
+    var LW = 96, LH = 256;
+    var c = makeCanvas(LW, LH), x = c.getContext('2d');
+    var g = x.createLinearGradient(0, LH, 0, 0);
+    g.addColorStop(0, '#102d1b');
+    g.addColorStop(0.35, '#1d5330');
+    g.addColorStop(0.75, '#2e7742');
+    g.addColorStop(1, '#58a65c');
+    x.fillStyle = g; x.fillRect(0, 0, LW, LH);
+    x.strokeStyle = 'rgba(8,28,17,.45)'; x.lineWidth = 3;
+    x.beginPath(); x.moveTo(LW / 2, LH); x.lineTo(LW / 2, 0); x.stroke();
+    for (var i = 0; i < 18; i++) {
+      var yy = LH - (i + 0.5) / 18 * LH;
+      x.strokeStyle = 'rgba(10,34,21,.20)'; x.lineWidth = 1.3;
+      x.beginPath(); x.moveTo(LW / 2, yy); x.lineTo(LW * 0.06, yy + 13); x.stroke();
+      x.beginPath(); x.moveTo(LW / 2, yy); x.lineTo(LW * 0.94, yy + 13); x.stroke();
+    }
+    for (var k = 0; k < 260; k++) {
+      x.fillStyle = 'rgba(' + (110 + (Math.random() * 70 | 0)) + ',' + (165 + (Math.random() * 70 | 0)) + ',115,' + (Math.random() * 0.08) + ')';
+      x.fillRect(Math.random() * LW, Math.random() * LH, 2, 6);
+    }
+    var t = new THREE.CanvasTexture(c);
+    if (THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
+    return t;
+  }
+  var plantMat = new THREE.MeshStandardMaterial({
+    map: leafTexture(), roughness: 0.92, metalness: 0, side: THREE.DoubleSide
+  });
+
+  // ねもと ほそく、なかほど ひろく、さきは とがる は
+  function bladeGeo(h, wMax, segs) {
+    var pos = [], uvs = [], idx = [];
+    for (var i = 0; i <= segs; i++) {
+      var t = i / segs;
+      var w = wMax * Math.min(1, t * 5.5) * Math.pow(1 - t, 0.45);
+      var y = t * h;
+      pos.push(-w, y, 0, w, y, 0);
+      uvs.push(0, t, 1, t);
+    }
+    for (var j = 0; j < segs; j++) {
+      var a = j * 2;
+      idx.push(a, a + 1, a + 2, a + 2, a + 1, a + 3);
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
+  }
+
   var plants = new THREE.Group();
-  var plantMat = new THREE.MeshStandardMaterial({ color: 0x23543a, roughness: 0.9, side: THREE.DoubleSide });
   var plantList = [];
-  for (var pi = 0; pi < 16; pi++) {
-    var ph = 1.6 + Math.random() * 2.4;
-    var g = new THREE.PlaneGeometry(0.17 + Math.random() * 0.1, ph, 1, 10);
-    g.translate(0, ph / 2, 0);
+  function addBlade(bx, bz, h, w, yaw, tilt) {
+    var g = bladeGeo(h, w, 10);
     var m = new THREE.Mesh(g, plantMat);
-    var side = pi % 2 === 0 ? -1 : 1;
-    m.position.set(side * (2.0 + Math.random() * 5.5), FLOOR_Y, -1.5 - Math.random() * 13);
-    m.rotation.y = Math.random() * 3.14;
-    m.userData = { base: g.attributes.position.array.slice(0), ph: Math.random() * 6.28, h: ph };
+    m.position.set(bx, FLOOR_Y - 0.06, bz);
+    m.rotation.y = yaw;
+    m.rotation.z = tilt;
+    m.userData = { base: g.attributes.position.array.slice(0), ph: Math.random() * 6.28, h: h };
     plants.add(m);
     plantList.push(m);
   }
-  // はばの ひろい みずくさ
-  var leafMat = new THREE.MeshStandardMaterial({ color: 0x1b4630, roughness: 0.94, side: THREE.DoubleSide });
-  for (var li = 0; li < 10; li++) {
-    var lh = 0.8 + Math.random() * 1.3;
-    var lg = new THREE.PlaneGeometry(0.26 + Math.random() * 0.22, lh, 1, 8);
-    lg.translate(0, lh / 2, 0);
-    var lm = new THREE.Mesh(lg, leafMat);
-    lm.position.set((Math.random() - 0.5) * 14, FLOOR_Y, -1.2 - Math.random() * 11);
-    lm.rotation.y = Math.random() * 3.14;
-    lm.userData = { base: lg.attributes.position.array.slice(0), ph: Math.random() * 6.28, h: lh };
-    plants.add(lm);
-    plantList.push(lm);
+  function addClump(cx2, cz2, kind) {
+    var n, i, a2;
+    if (kind === 'grass') {                  // せの たかい ほそい くさ
+      n = 6 + (Math.random() * 5 | 0);
+      for (i = 0; i < n; i++) {
+        addBlade(cx2 + (Math.random() - 0.5) * 0.55, cz2 + (Math.random() - 0.5) * 0.55,
+          1.5 + Math.random() * 2.1, 0.055 + Math.random() * 0.045,
+          Math.random() * 6.28, (Math.random() - 0.5) * 0.34);
+      }
+    } else if (kind === 'broad') {           // はばの ひろい は
+      n = 3 + (Math.random() * 3 | 0);
+      for (i = 0; i < n; i++) {
+        addBlade(cx2 + (Math.random() - 0.5) * 0.35, cz2 + (Math.random() - 0.5) * 0.35,
+          0.7 + Math.random() * 0.95, 0.16 + Math.random() * 0.13,
+          Math.random() * 6.28, (Math.random() - 0.5) * 0.70);
+      }
+    } else {                                  // ちいさな しげみ
+      n = 10 + (Math.random() * 8 | 0);
+      for (i = 0; i < n; i++) {
+        a2 = Math.random() * 6.28;
+        addBlade(cx2 + Math.cos(a2) * Math.random() * 0.32, cz2 + Math.sin(a2) * Math.random() * 0.32,
+          0.28 + Math.random() * 0.44, 0.045 + Math.random() * 0.04,
+          a2, (Math.random() - 0.5) * 1.1);
+      }
+    }
+  }
+  for (var ci2 = 0; ci2 < 15; ci2++) {
+    var kk = Math.random();
+    addClump((Math.random() - 0.5) * 16, -1 - Math.random() * 12,
+      kk < 0.45 ? 'grass' : (kk < 0.76 ? 'broad' : 'bush'));
   }
   scene.add(plants);
 
@@ -555,6 +622,98 @@ input[type=file]{display:none}
   surface.rotation.x = Math.PI / 2;
   surface.position.set(0, 4.9, -4);
   scene.add(surface);
+
+  // ---- ほかの こざかな（ふつうの さかな。かおは ない）----
+  function smallFishBody() {
+    var SEG2 = 16, RING2 = 10, pos = [], idx = [];
+    for (var i = 0; i <= SEG2; i++) {
+      var t = i / SEG2;
+      var z = 0.22 - t * 0.52;
+      var r = Math.sin(Math.pow(t, 0.7) * Math.PI) * 0.075 + 0.005;
+      for (var j = 0; j <= RING2; j++) {
+        var a = j / RING2 * Math.PI * 2;
+        pos.push(r * 0.60 * Math.cos(a), r * Math.sin(a), z);
+      }
+    }
+    for (var p = 0; p < SEG2; p++) {
+      for (var q = 0; q < RING2; q++) {
+        var A = p * (RING2 + 1) + q, B = A + RING2 + 1;
+        idx.push(A, B, A + 1, A + 1, B, B + 1);
+      }
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
+  }
+  var sfTailGeo = new THREE.BufferGeometry();
+  sfTailGeo.setAttribute('position', new THREE.Float32BufferAttribute([
+    0, 0, 0.02, 0, 0.115, -0.15, 0, 0.012, -0.085,
+    0, 0, 0.02, 0, 0.012, -0.085, 0, -0.105, -0.145
+  ], 3));
+  sfTailGeo.computeVertexNormals();
+  var sfBodyGeo = smallFishBody();
+  var sfMat = new THREE.MeshStandardMaterial({ color: 0x86aeba, roughness: 0.40, metalness: 0.28 });
+  var sfFinMat = new THREE.MeshStandardMaterial({
+    color: 0x6f96a2, roughness: 0.8, transparent: true, opacity: 0.55,
+    side: THREE.DoubleSide, depthWrite: false
+  });
+
+  var school = new THREE.Group();
+  var SCHOOL = [];
+  for (var fi = 0; fi < 15; fi++) {
+    var fg = new THREE.Group();
+    fg.add(new THREE.Mesh(sfBodyGeo, sfMat));
+    var tp = new THREE.Group(); tp.position.z = -0.29;
+    tp.add(new THREE.Mesh(sfTailGeo, sfFinMat));
+    fg.add(tp);
+    var sc2 = 0.7 + Math.random() * 0.75;
+    fg.scale.set(sc2, sc2, sc2);
+    fg.position.set((Math.random() - 0.5) * 5, 0.5, -8);
+    school.add(fg);
+    SCHOOL.push({
+      g: fg, tail: tp, ph: Math.random() * 6.28,
+      off: new THREE.Vector3((Math.random() - 0.5) * 2.8, (Math.random() - 0.5) * 1.4, (Math.random() - 0.5) * 2.8)
+    });
+  }
+  scene.add(school);
+
+  var schoolPos = new THREE.Vector3(-3, 0.7, -8);
+  var schoolVel = new THREE.Vector3(0.4, 0, 0.1);
+  var schoolTgt = new THREE.Vector3(3, 0.9, -7);
+  var schoolNext = 0;
+  var sfM = new THREE.Matrix4(), sfQ = new THREE.Quaternion();
+  var sfLook = new THREE.Vector3(), sfWant = new THREE.Vector3(), sfTmp = new THREE.Vector3();
+
+  function updateSchool(now, dt, t, mo) {
+    if (now > schoolNext) {
+      schoolTgt.set((Math.random() - 0.5) * 13, -0.5 + Math.random() * 2.4, -4 - Math.random() * 9);
+      schoolNext = now + 7000 + Math.random() * 7000;
+    }
+    sfWant.copy(schoolTgt).sub(schoolPos);
+    var d = sfWant.length();
+    if (d > 0.001) sfWant.multiplyScalar(Math.min(0.9, d) / d);
+    schoolVel.lerp(sfWant, Math.min(1, dt * 0.9));
+    schoolPos.addScaledVector(schoolVel, dt);
+
+    sfLook.copy(schoolPos);
+    if (schoolVel.lengthSq() > 0.0004) sfLook.add(schoolVel); else sfLook.z += 1;
+    sfM.lookAt(sfLook, schoolPos, UPV);
+    sfQ.setFromRotationMatrix(sfM);
+
+    for (var i = 0; i < SCHOOL.length; i++) {
+      var s = SCHOOL[i], o = s.off;
+      sfTmp.set(
+        schoolPos.x + o.x + Math.sin(t * 0.7 + s.ph) * 0.26 * mo,
+        schoolPos.y + o.y + Math.sin(t * 1.1 + s.ph * 1.7) * 0.18 * mo,
+        schoolPos.z + o.z + Math.cos(t * 0.6 + s.ph) * 0.26 * mo
+      );
+      s.g.position.lerp(sfTmp, Math.min(1, dt * 1.6));
+      s.g.quaternion.slerp(sfQ, Math.min(1, dt * 2.0));
+      s.tail.rotation.y = Math.sin(t * 9 + s.ph) * 0.55 * mo;
+    }
+  }
 
   // ただよう つぶ
   var dotTex = dotTexture();
@@ -895,9 +1054,13 @@ input[type=file]{display:none}
     return base * 1.0 + nose + nostril + brow + eye + cheek + lip + chin + under;
   }
 
-  function buildFace() {
+  // くちの せん で うえと したに きりわける（この ぎょう で ちょうど わかれる）
+  var JAW_ROW = 16;
+  var JAW_V = -1 + 2 * JAW_ROW / FSEG;
+
+  function buildFacePart(i0, i1) {
     var pos = [], uvs = [], idx = [];
-    for (var i = 0; i <= FSEG; i++) {
+    for (var i = i0; i <= i1; i++) {
       var vv = -1 + 2 * i / FSEG;
       for (var j = 0; j <= FSEG; j++) {
         var uu = -1 + 2 * j / FSEG;
@@ -909,7 +1072,7 @@ input[type=file]{display:none}
         uvs.push((cu + 1) / 2, (cvv + 1) / 2);
       }
     }
-    for (var a = 0; a < FSEG; a++) {
+    for (var a = 0; a < i1 - i0; a++) {
       for (var b = 0; b < FSEG; b++) {
         var A = a * (FSEG + 1) + b, B = A + FSEG + 1;
         idx.push(A, B, A + 1, A + 1, B, B + 1);
@@ -923,15 +1086,55 @@ input[type=file]{display:none}
     return g;
   }
 
-  var faceGeo = buildFace();
-  var faceBase = faceGeo.attributes.position.array.slice(0);
-  var faceMesh = new THREE.Mesh(faceGeo, new THREE.MeshStandardMaterial({
+  var faceMat = new THREE.MeshStandardMaterial({
     map: faceTex, transparent: true, roughness: 0.56, metalness: 0,
     side: THREE.DoubleSide, alphaTest: 0.02
-  }));
-  faceMesh.position.z = HEAD_Z;
-  faceMesh.scale.set(1.035, 1.035, 1.02);
-  fishGroup.add(faceMesh);
+  });
+  var faceGroup = new THREE.Group();
+  faceGroup.position.z = HEAD_Z;
+  faceGroup.scale.set(1.035, 1.035, 1.02);
+  fishGroup.add(faceGroup);
+
+  // うわあご（うごかない）
+  faceGroup.add(new THREE.Mesh(buildFacePart(JAW_ROW, FSEG), faceMat));
+
+  // したあご：みみの あたりを ちょうつがいに して まわる
+  var HINGE_Y = -0.05 * HRY, HINGE_Z = -0.30 * HRZ;
+  var jawPivot = new THREE.Group();
+  jawPivot.position.set(0, HINGE_Y, HINGE_Z);
+  faceGroup.add(jawPivot);
+  var jawMesh = new THREE.Mesh(buildFacePart(0, JAW_ROW), faceMat);
+  jawMesh.position.set(0, -HINGE_Y, -HINGE_Z);
+  jawPivot.add(jawMesh);
+
+  // ---- くちの なか（だれの かおでも おなじ）----
+  function inJaw(y, z) { return [y - HINGE_Y, z - HINGE_Z]; }
+
+  // おくの くらい ところ
+  var cavity = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14),
+    new THREE.MeshStandardMaterial({ color: 0x3a0d10, roughness: 1, metalness: 0 }));
+  cavity.scale.set(HRX * 0.50, HRY * 0.32, HRZ * 0.58);
+  cavity.position.set(0, (JAW_V + 0.05) * HRY, HRZ * 0.38);
+  faceGroup.add(cavity);
+
+  // うえの は
+  var teethMat = new THREE.MeshStandardMaterial({ color: 0xefe9db, roughness: 0.40, metalness: 0 });
+  var upperTeeth = new THREE.Mesh(new THREE.BoxGeometry(HRX * 0.34, HRY * 0.046, HRZ * 0.12), teethMat);
+  upperTeeth.position.set(0, (JAW_V + 0.050) * HRY, HRZ * 0.62);
+  faceGroup.add(upperTeeth);
+
+  // したの は と した（あごに ついて いっしょに うごく）
+  var lt = inJaw((JAW_V - 0.045) * HRY, HRZ * 0.60);
+  var lowerTeeth = new THREE.Mesh(new THREE.BoxGeometry(HRX * 0.30, HRY * 0.042, HRZ * 0.11), teethMat);
+  lowerTeeth.position.set(0, lt[0], lt[1]);
+  jawPivot.add(lowerTeeth);
+
+  var tg = inJaw((JAW_V - 0.11) * HRY, HRZ * 0.42);
+  var tongue = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12),
+    new THREE.MeshStandardMaterial({ color: 0x95534e, roughness: 0.70 }));
+  tongue.scale.set(HRX * 0.30, HRY * 0.070, HRZ * 0.34);
+  tongue.position.set(0, tg[0], tg[1]);
+  jawPivot.add(tongue);
 
   // あたまの いろを しゃしんに あわせる
   function setHeadTint() {
@@ -952,28 +1155,8 @@ input[type=file]{display:none}
 
   /* ================= くちの うごき ================= */
   var mouthOpen = 0, mouthTarget = 0;
-  var JAW_V = -0.44;          // くちの すぐ うえ。ここから したが あごとして さがる
   function applyMouth() {
-    var p = faceGeo.attributes.position.array;
-    for (var i = 0; i < p.length; i += 3) {
-      var vy = faceBase[i + 1] / HRY;
-      var hu = faceBase[i] / HRX;
-      p[i] = faceBase[i];
-      p[i + 1] = faceBase[i + 1];
-      p[i + 2] = faceBase[i + 2];
-      if (mouthOpen > 0.002 && vy < JAW_V) {
-        var a = (JAW_V - vy) / (1 + JAW_V);
-        if (a > 1) a = 1;
-        var k = Math.sqrt(a) * Math.exp(-(hu * hu) / 0.45);   // まんなかほど よく さがる
-        p[i + 1] = faceBase[i + 1] - mouthOpen * 0.26 * k * HRY;
-        p[i + 2] = faceBase[i + 2] + mouthOpen * 0.07 * k * HRZ;
-        // くちの ふちを へこませて、あいた ところを くらく みせる
-        var d = (vy + 0.52) / 0.10;
-        p[i + 2] -= mouthOpen * 0.20 * HRZ * Math.exp(-d * d) * Math.exp(-(hu * hu) / 0.30);
-      }
-    }
-    faceGeo.attributes.position.needsUpdate = true;
-    faceGeo.computeVertexNormals();
+    jawPivot.rotation.x = mouthOpen * 0.54;   // したあごが さがって くちが あく
   }
 
   /* ================= からだの うねり ================= */
@@ -1497,12 +1680,12 @@ input[type=file]{display:none}
     var chy = Math.cos(hy), shy = Math.sin(hy);
     var chp = Math.cos(hp), shp = Math.sin(hp);
     var fz1 = dzf * chy;
-    faceMesh.position.set(
+    faceGroup.position.set(
       dzf * shy + bendAt(HEAD_Z, swimPhase, amp),
       -fz1 * shp,
       NECK_Z + fz1 * chp
     );
-    faceMesh.rotation.set(hp, hy, 0);
+    faceGroup.rotation.set(hp, hy, 0);
 
     var pbx = bendAt(0.35, swimPhase, amp);
     var flap = Math.sin(swimPhase * 0.8) * (0.20 + 0.24 * Math.min(1, sp)) * mo;
@@ -1539,6 +1722,7 @@ input[type=file]{display:none}
     applyMouth();
 
     updateFish(performance.now(), dt);
+    updateSchool(performance.now(), dt, t, mo);
     fishGroup.position.y = fish.pos.y + Math.sin(t * 0.85) * 0.17 * mo;   // たえず すこし うきしずみする
 
     // カメラ（ゆっくり まわりこみ、しゃべるとき すこし よる）
