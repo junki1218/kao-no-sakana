@@ -148,6 +148,23 @@ button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer}
 .icon-btn{width:40px;height:40px;border-radius:50%;border:1px solid var(--edge);
   background:rgba(4,23,27,.5);color:var(--fg-dim);font-size:18px;line-height:1;padding:0}
 #addLine:disabled{opacity:.4;cursor:default}
+.line-item{row-gap:6px;padding-bottom:10px;border-bottom:1px solid rgba(143,227,207,.10)}
+.line-item .num{grid-row:1;grid-column:1}
+.line-item .line-text{grid-row:1;grid-column:2}
+.line-item .pic-wrap{grid-row:1;grid-column:3}
+.line-item .icon-btn{grid-row:1;grid-column:4}
+.line-opts{grid-row:2;grid-column:2 / span 3;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.seg{display:inline-flex;border:1px solid var(--edge);border-radius:999px;overflow:hidden}
+.seg button{border:0;background:rgba(4,23,27,.5);color:var(--fg-dim);font-size:13px;
+  letter-spacing:.06em;padding:7px 14px}
+.seg button[aria-pressed="true"]{background:rgba(143,227,207,.20);color:var(--fg)}
+.voice-btn{border:1px dashed var(--edge);border-radius:999px;background:rgba(4,23,27,.5);
+  color:var(--fg-dim);font-size:13px;padding:7px 14px;max-width:100%;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.voice-btn.has{border:1px solid rgba(143,227,207,.45);color:var(--fg)}
+.voice-x{border:1px solid var(--edge);border-radius:999px;background:rgba(4,23,27,.5);
+  color:var(--fg-dim);font-size:13px;padding:7px 12px}
+.line-warn{font-size:12px;color:#e8c46a;letter-spacing:.04em}
 
 /* ---- せりふの がぞう：みぎうえ、きんの わく、すこし すける ---- */
 #picWin{
@@ -231,17 +248,18 @@ input[type=file]{display:none}
   </div>
   <section class="lines" aria-labelledby="linesHead">
     <div class="sec-head"><span id="linesHead">せりふ</span><small id="lineCount">10 / 10</small></div>
-    <p class="sec-note">うえから　じゅんばんに　はなします。がぞうを　つけると、はなして　いる　あいだ　みぎうえに　でます。</p>
+    <p class="sec-note">うえから　じゅんばんに、10びょうに　1かい　はなします。「よみあげ」か「ボイス」を　えらべます。がぞうを　つけると、はなして　いる　あいだ（ボイスなら　その　ながさ　だけ）みぎうえに　でます。</p>
     <ol id="lineList"></ol>
     <div class="row"><button class="tg" id="addLine">＋　せりふを　ふやす</button></div>
   </section>
-  <p class="note">しゃしんと　がぞうは　この　たんまつの　そとに　でません。ほぞんも　しません。<br>せりふの　もじだけ　この　たんまつに　おぼえます。</p>
+  <p class="note">しゃしん・がぞう・ボイスは　この　たんまつの　そとに　でません。ほぞんも　しません。<br>せりふの　もじと「よみあげ／ボイス」の　えらびだけ　この　たんまつに　おぼえます。</p>
 </div>
 
 <div id="fallback">この　たんまつでは　３Ｄが　うごきません。<br>ほかの　ブラウザで　ひらいて　みて　ください。</div>
 
 <input type="file" id="file" accept="image/*">
 <input type="file" id="lineFile" accept="image/*">
+<input type="file" id="voiceFile" accept="audio/*">
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -1559,9 +1577,11 @@ input[type=file]{display:none}
   }
 
   /* ================= BGM（おんがく） =================
-     おとの ファイルは もたない。その ばで つくる。
-     ゆっくり かわる わおん ＋ ときどき なる すずの おと。 */
+     bgm.mp3 を くりかえし ながす。よめない ときだけ その ばで つくる おとに きりかえる。
+     おとの おおきさは Web Audio の GainNode で かえる（iPad は audio.volume を むしするため） */
+  var BGM_URL = 'bgm.mp3';
   var musicGain = null, musicTarget = -1, bgm = null, chordTimer = null, bellTimer = null;
+  var bgmEl = null;
   var CHORDS = [
     [110.00, 261.63, 329.63],   // Am
     [87.31, 220.00, 261.63],   // F
@@ -1570,18 +1590,45 @@ input[type=file]{display:none}
   ];
   var BELLS = [440.00, 523.25, 587.33, 659.25, 783.99, 880.00];
 
+  // 「みずそうを ひらく」を おした その ときに よぶ（iPad で おとを ならす ために ひつよう）
   function startMusic() {
     if (!actx || bgm) return;
+    var master = actx.createGain(); master.gain.value = 0.0001;
+    master.connect(actx.destination);
+    musicGain = master;
+    bgm = { master: master, synth: false };
     try {
-      var master = actx.createGain(); master.gain.value = 0.0001;
+      bgmEl = new Audio();
+      bgmEl.loop = true;
+      bgmEl.preload = 'auto';
+      bgmEl.addEventListener('error', useSynthMusic);
+      bgmEl.src = BGM_URL;
+      actx.createMediaElementSource(bgmEl).connect(master);
+      var p = bgmEl.play();
+      if (p && p.catch) p.catch(useSynthMusic);
+    } catch (e) { useSynthMusic(); }
+  }
+
+  // ファイルが ない／よめない ときの かわり
+  function useSynthMusic() {
+    if (!bgm || bgm.synth) return;
+    bgm.synth = true;
+    try { if (bgmEl) bgmEl.pause(); } catch (e) {}
+    startSynthMusic(bgm.master);
+    musicTarget = -1;
+  }
+
+  function startSynthMusic(master) {
+    try {
       var lp = actx.createBiquadFilter(); lp.type = 'lowpass';
       lp.frequency.value = 1500; lp.Q.value = 0.4;
-      master.connect(lp); lp.connect(actx.destination);
+      var synthIn = actx.createGain(); synthIn.gain.value = 1;
+      synthIn.connect(lp); lp.connect(master);
       // やまびこ（みずの なかっぽさ）
       var dly = actx.createDelay(1.6); dly.delayTime.value = 0.44;
       var fb = actx.createGain(); fb.gain.value = 0.33;
       var wet = actx.createGain(); wet.gain.value = 0.36;
-      lp.connect(dly); dly.connect(fb); fb.connect(dly); dly.connect(wet); wet.connect(actx.destination);
+      lp.connect(dly); dly.connect(fb); fb.connect(dly); dly.connect(wet); wet.connect(master);
 
       var oscs = [];
       for (var i = 0; i < 3; i++) {
@@ -1590,12 +1637,11 @@ input[type=file]{display:none}
         o.frequency.value = CHORDS[0][i];
         o.detune.value = (i - 1) * 4;
         var g = actx.createGain(); g.gain.value = i === 0 ? 0.50 : 0.20;
-        o.connect(g); g.connect(master);
+        o.connect(g); g.connect(synthIn);
         o.start();
         oscs.push(o);
       }
-      musicGain = master;
-      bgm = { master: master, oscs: oscs };
+      bgm.oscs = oscs;
 
       var ci = 0;
       (function nextChord() {
@@ -1625,13 +1671,16 @@ input[type=file]{display:none}
           nextBell();
         }, 2800 + Math.random() * 5600);
       })();
-    } catch (e) { bgm = null; }
+    } catch (e) {}
   }
 
   // しゃべる あいだは おんがくを さげる
   function updateMusicLevel() {
     if (!musicGain || !actx) return;
-    var want = opt.music ? (fish.speaking ? 0.030 : 0.085) : 0.0001;
+    var file = bgm && !bgm.synth;
+    var hi = file ? 0.40 : 0.085;          // ふだん
+    var lo = file ? 0.10 : 0.030;          // しゃべって いる あいだ
+    var want = opt.music ? (fish.speaking ? lo : hi) : 0.0001;
     if (want !== musicTarget) {
       musicTarget = want;
       try { musicGain.gain.setTargetAtTime(want, actx.currentTime, 0.7); } catch (e) {}
@@ -1732,25 +1781,99 @@ input[type=file]{display:none}
   function hideCaption() { capEl.classList.remove('on'); }
 
   /* ---- せりふの いちらん（さいだい 10こ）----
-     もじは この たんまつに おぼえる。がぞうは おぼえない（とじると きえる） */
+     ひとつの せりふ = もじ ／ がぞう ／ よみあげ か ボイス か ／ ボイスの おと
+     もじ と「よみあげ・ボイス」の えらびだけ この たんまつに おぼえる。
+     がぞう と ボイスの おとは おぼえない（とじると きえる） */
   var MAX_LINES = 10;
-  var LINES_KEY = 'kao-no-sakana:lines:v1';
+  var LINES_KEY = 'kao-no-sakana:lines:v2';
+  var LINES_KEY_OLD = 'kao-no-sakana:lines:v1';
+  var LINE_GAP = 10000;      // せりふは 10びょうに 1かい（はなしはじめ から つぎの はなしはじめ まで）
   var lineItems = [];
+  function newLine(text, mode) {
+    return { text: text || '', url: null, mode: mode === 'voice' ? 'voice' : 'tts', voiceBuf: null, voiceName: '' };
+  }
   (function loadLines() {
     var saved = null;
     try { saved = JSON.parse(localStorage.getItem(LINES_KEY) || 'null'); } catch (e) { saved = null; }
+    if (!Array.isArray(saved) || !saved.length) {
+      try { saved = JSON.parse(localStorage.getItem(LINES_KEY_OLD) || 'null'); } catch (e) { saved = null; }
+    }
     var src = (Array.isArray(saved) && saved.length) ? saved : DEFAULT_LINES;
     for (var i = 0; i < src.length && lineItems.length < MAX_LINES; i++) {
-      if (typeof src[i] === 'string') lineItems.push({ text: src[i], url: null });
+      var s = src[i];
+      if (typeof s === 'string') lineItems.push(newLine(s, 'tts'));
+      else if (s && typeof s.text === 'string') lineItems.push(newLine(s.text, s.mode));
     }
   })();
   function saveLines() {
     try {
-      localStorage.setItem(LINES_KEY, JSON.stringify(lineItems.map(function (l) { return l.text; })));
+      localStorage.setItem(LINES_KEY, JSON.stringify(lineItems.map(function (l) {
+        return { text: l.text, mode: l.mode };
+      })));
     } catch (e) {}
   }
+  function hasText(l) { return l.text.replace(/[　 ]/g, '').length > 0; }
+  function usesVoice(l) { return l.mode === 'voice' && !!l.voiceBuf; }
   function activeLines() {
-    return lineItems.filter(function (l) { return l.text.replace(/[　 ]/g, '').length > 0; });
+    return lineItems.filter(function (l) { return hasText(l) || usesVoice(l); });
+  }
+
+  /* ---- ボイスの おと（Web Audio で ならす。おとの おおきさで くちを うごかす）---- */
+  var voiceSrc = null, voiceAnalyser = null, voiceWave = null, voiceGain = null;
+  function playVoice(buf, onDone) {
+    stopVoice();
+    if (!actx) { onDone(); return; }
+    try {
+      if (!voiceAnalyser) {
+        voiceAnalyser = actx.createAnalyser();
+        voiceAnalyser.fftSize = 512;
+        voiceWave = new Uint8Array(voiceAnalyser.fftSize);
+        voiceGain = actx.createGain();
+        voiceAnalyser.connect(voiceGain);
+        voiceGain.connect(actx.destination);
+      }
+      voiceGain.gain.value = opt.voice ? 1 : 0;   //「こえ」を きって いても じかんは まもる
+      var s = actx.createBufferSource();
+      s.buffer = buf;
+      s.connect(voiceAnalyser);
+      var done = false;
+      var safety = setTimeout(finish, buf.duration * 1000 + 1200);
+      function finish() {
+        if (done) return; done = true;
+        clearTimeout(safety);
+        if (voiceSrc === s) voiceSrc = null;
+        onDone();
+      }
+      s.onended = finish;
+      voiceSrc = s;
+      s.start();
+    } catch (e) { onDone(); }
+  }
+  function stopVoice() {
+    if (!voiceSrc) return;
+    var s = voiceSrc; voiceSrc = null;
+    try { s.onended = null; s.stop(); } catch (e) {}
+  }
+  // いま ながれて いる ボイスの おおきさ（ながれて いない ときは -1）
+  function voiceLevel() {
+    if (!voiceSrc || !voiceAnalyser) return -1;
+    voiceAnalyser.getByteTimeDomainData(voiceWave);
+    var sum = 0;
+    for (var i = 0; i < voiceWave.length; i++) {
+      var d = (voiceWave[i] - 128) / 128;
+      sum += d * d;
+    }
+    return Math.sqrt(sum / voiceWave.length);
+  }
+  // えらんだ おとの ファイルを よみこむ（この たんまつの なかだけ）
+  function decodeVoiceFile(file, ok, ng) {
+    if (!actx) { ng(); return; }
+    var fr = new FileReader();
+    fr.onload = function () {
+      try { actx.decodeAudioData(fr.result, ok, function () { ng(); }); } catch (e) { ng(); }
+    };
+    fr.onerror = function () { ng(); };
+    fr.readAsArrayBuffer(file);
   }
 
   /* ---- みぎうえの がぞう ---- */
@@ -1780,28 +1903,45 @@ input[type=file]{display:none}
     if (picAlpha === 0) picWin.hidden = true;
   }
 
+  // はなす ながれの ばんごう。とめたり はじめたり する たびに かわる。
+  // ふるい ながれの「はなしおわり」が あとから とどいても むしする（せりふが にばいの はやさで すすまない ように）
+  var talkGen = 0;
+
   function sayOne() {
     if (!running) return;
+    var gen = talkGen;
     var list = activeLines();
-    if (!list.length) { speakTimer = setTimeout(sayOne, 5000); return; }
+    if (!list.length) { speakTimer = setTimeout(sayOne, LINE_GAP); return; }
     lastIdx = (lastIdx + 1) % list.length;   // はなしの じゅんばんどおりに
     var item = list[lastIdx];
+    var startedAt = performance.now();
     fish.speaking = true;
-    showCaption(item.text);
+    if (hasText(item)) showCaption(item.text); else hideCaption();
     showPic(item.url);                        // せりふの はじまりで フェードイン
-    speak(item.text, function () {
-      if (!running) return;
+
+    function done() {
+      if (!running || gen !== talkGen) return;
       fish.speaking = false;
       hideCaption();
-      hidePic();                              // せりふの おわりで フェードアウト
+      hidePic();                              // せりふ（ボイス）の おわりで フェードアウト
       newTarget(performance.now());
-      speakTimer = setTimeout(sayOne, 7000 + Math.random() * 7000);
-    });
+      // はなしはじめ から 10びょう。ながい ボイスの ときは おわって 1.5びょう あけて つぎへ
+      var wait = Math.max(1500, LINE_GAP - (performance.now() - startedAt));
+      speakTimer = setTimeout(sayOne, wait);
+    }
+
+    if (usesVoice(item)) playVoice(item.voiceBuf, done);   // ボイスの ながさ だけ がぞうを だす
+    else speak(item.text, done);
   }
-  function startTalking() { running = true; clearTimeout(speakTimer); speakTimer = setTimeout(sayOne, 2400); }
+  function startTalking() {
+    talkGen++;
+    running = true; clearTimeout(speakTimer); speakTimer = setTimeout(sayOne, 2400);
+  }
   function stopTalking() {
+    talkGen++;
     running = false; clearTimeout(speakTimer);
     fish.speaking = false; hideCaption(); hidePic();
+    stopVoice();
     if ('speechSynthesis' in window) { try { speechSynthesis.cancel(); } catch (e) {} }
   }
 
@@ -1868,7 +2008,11 @@ input[type=file]{display:none}
     }
 
     // くち
-    if (fish.speaking) mouthTarget = 0.34 + 0.66 * Math.abs(Math.sin(t * 6.0 + Math.sin(t * 1.7) * 1.2));
+    var vl = voiceLevel();
+    if (fish.speaking && vl >= 0) {
+      // ボイスの ときは おとの おおきさに あわせて くちを うごかす
+      mouthTarget = vl < 0.015 ? 0 : Math.min(1, (vl - 0.015) * 7.5);
+    } else if (fish.speaking) mouthTarget = 0.34 + 0.66 * Math.abs(Math.sin(t * 6.0 + Math.sin(t * 1.7) * 1.2));
     else if (fish.gulp) mouthTarget = 0.45 + 0.55 * Math.abs(Math.sin(t * 4.2));
     else mouthTarget = 0;
     mouthOpen += (mouthTarget - mouthOpen) * Math.min(1, dt * 18);
@@ -2252,7 +2396,8 @@ input[type=file]{display:none}
   var lineCount = document.getElementById('lineCount');
   var addLineBtn = document.getElementById('addLine');
   var lineFile = document.getElementById('lineFile');
-  var pickingLine = -1;
+  var voiceFile = document.getElementById('voiceFile');
+  var pickingLine = -1, pickingVoice = -1;
 
   function renderLines() {
     lineList.innerHTML = '';
@@ -2313,7 +2458,56 @@ input[type=file]{display:none}
         renderLines();
       });
 
+      // 2だんめ：よみあげ か ボイス か ／ ボイスの ファイル
+      var opts = document.createElement('div');
+      opts.className = 'line-opts';
+      var seg = document.createElement('div');
+      seg.className = 'seg';
+      seg.setAttribute('role', 'group');
+      seg.setAttribute('aria-label', (i + 1) + 'ばんの こえの だしかた');
+      [['tts', 'よみあげ'], ['voice', 'ボイス']].forEach(function (m) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = m[1];
+        b.setAttribute('aria-pressed', String(it.mode === m[0]));
+        b.addEventListener('click', function () {
+          it.mode = m[0];
+          saveLines();
+          if (m[0] === 'voice' && !it.voiceBuf) { pickingVoice = i; voiceFile.click(); }
+          renderLines();
+        });
+        seg.appendChild(b);
+      });
+      opts.appendChild(seg);
+
+      if (it.mode === 'voice') {
+        var vb = document.createElement('button');
+        vb.type = 'button';
+        vb.className = 'voice-btn' + (it.voiceBuf ? ' has' : '');
+        vb.textContent = it.voiceBuf
+          ? it.voiceName + '（' + it.voiceBuf.duration.toFixed(1) + 'びょう）'
+          : 'ボイスの　ファイルを　えらぶ';
+        vb.setAttribute('aria-label', (i + 1) + 'ばんの ボイスの ファイルを えらぶ');
+        vb.addEventListener('click', function () { pickingVoice = i; voiceFile.click(); });
+        opts.appendChild(vb);
+        if (it.voiceBuf) {
+          var vx = document.createElement('button');
+          vx.type = 'button';
+          vx.className = 'voice-x';
+          vx.textContent = 'はずす';
+          vx.setAttribute('aria-label', (i + 1) + 'ばんの ボイスを はずす');
+          vx.addEventListener('click', function () { it.voiceBuf = null; it.voiceName = ''; renderLines(); });
+          opts.appendChild(vx);
+        } else {
+          var warn = document.createElement('span');
+          warn.className = 'line-warn';
+          warn.textContent = it.voiceError ? 'この　ファイルは　よめません' : 'ファイルが　ない　あいだは　よみあげに　なります';
+          opts.appendChild(warn);
+        }
+      }
+
       li.appendChild(num); li.appendChild(inp); li.appendChild(wrap); li.appendChild(del);
+      li.appendChild(opts);
       lineList.appendChild(li);
     });
     lineCount.textContent = lineItems.length + ' / ' + MAX_LINES;
@@ -2323,7 +2517,7 @@ input[type=file]{display:none}
 
   addLineBtn.addEventListener('click', function () {
     if (lineItems.length >= MAX_LINES) return;
-    lineItems.push({ text: '', url: null });
+    lineItems.push(newLine('', 'tts'));
     saveLines();
     renderLines();
     var last = document.getElementById('line-' + (lineItems.length - 1));
@@ -2339,6 +2533,27 @@ input[type=file]{display:none}
     if (it.url) URL.revokeObjectURL(it.url);
     it.url = URL.createObjectURL(f);      // この たんまつの なかだけ。どこにも おくらない
     renderLines();
+  });
+
+  // ボイスの ファイル（この たんまつの なかだけ。どこにも おくらない、ほぞんも しない）
+  voiceFile.addEventListener('change', function () {
+    var f = voiceFile.files && voiceFile.files[0];
+    voiceFile.value = '';
+    var it = lineItems[pickingVoice];
+    pickingVoice = -1;
+    if (!f || !it) return;
+    it.voiceError = false;
+    decodeVoiceFile(f, function (buf) {
+      it.voiceBuf = buf;
+      it.voiceName = f.name.replace(/\.[^.]+$/, '');
+      it.mode = 'voice';
+      saveLines();
+      renderLines();
+    }, function () {
+      it.voiceBuf = null;
+      it.voiceError = true;
+      renderLines();
+    });
   });
 
   renderLines();
