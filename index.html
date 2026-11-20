@@ -126,6 +126,7 @@ button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer}
 }
 .rng{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--fg-dim);letter-spacing:.06em}
 .rng input[type=range]{width:min(150px,30vw);accent-color:#8fe3cf;background:transparent}
+.rng b{font-weight:700;font-variant-numeric:tabular-nums;min-width:4.2em;text-align:right;color:var(--fg)}
 .note{font-size:12.5px;color:var(--fg-dim);text-align:center;line-height:1.8;max-width:620px;margin:0}
 
 /* ---- せりふの へんしゅう ---- */
@@ -240,6 +241,9 @@ input[type=file]{display:none}
     <label class="rng"><span>はなの　たかさ</span><input type="range" id="rngNose" min="0" max="200" value="100"></label>
     <label class="rng"><span>くちの　ひらき</span><input type="range" id="rngMouth" min="0" max="250" value="100"></label>
     <button class="tg" id="resetNose">ふつうに　もどす</button>
+  </div>
+  <div class="row">
+    <label class="rng"><span>てが　はえる　かくりつ</span><input type="range" id="rngHand" min="0" max="100" step="10" value="10"><b id="handPct">10％</b></label>
   </div>
   <div class="row">
     <button class="ghost" id="repick" hidden>べつの　しゃしん</button>
@@ -1368,9 +1372,10 @@ input[type=file]{display:none}
     pecL.visible = pecR.visible = !isHands;
     handsGroup.visible = isHands;
   }
-  // くじを ひく（10% て、のこり さかな）
+  // くじを ひく（HAND_P の かくりつで て、のこりは さかな）
+  var HAND_P = 0.10;           // てが はえる かくりつ（せってい で 0〜1 を 0.1 きざみ）
   function rollForm() {
-    setForm(Math.random() < 0.10 ? 'hands' : 'fish');
+    setForm(Math.random() < HAND_P ? 'hands' : 'fish');
     return FORM;
   }
 
@@ -2745,7 +2750,7 @@ input[type=file]{display:none}
     } catch (e) {}
   }
   function saveFaceK() {
-    try { localStorage.setItem(FACEK_KEY, JSON.stringify({ nose: NOSE_K, mouth: MOUTH_K, form: FORM })); } catch (e) {}
+    try { localStorage.setItem(FACEK_KEY, JSON.stringify({ nose: NOSE_K, mouth: MOUTH_K, form: FORM, handP: HAND_P })); } catch (e) {}
   }
 
   /* ---- トグル ---- */
@@ -2794,6 +2799,16 @@ input[type=file]{display:none}
     MOUTH_K = (+rngMouth.value) / 100;
     saveFaceK();
   });
+  // てが はえる かくりつ（0〜100％、10％ きざみ）
+  var rngHand = document.getElementById('rngHand');
+  var handPct = document.getElementById('handPct');
+  function showHandP() { handPct.textContent = Math.round(HAND_P * 100) + '％'; }
+  rngHand.addEventListener('input', function () {
+    HAND_P = Math.round((+rngHand.value) / 10) * 10 / 100;   // 10％ きざみに そろえる
+    showHandP();
+    saveFaceK();
+  });
+  showHandP();
   document.getElementById('resetNose').addEventListener('click', function () {
     rngNose.value = '100'; NOSE_K = 1;
     rngMouth.value = '100'; MOUTH_K = 1;
@@ -3047,6 +3062,7 @@ input[type=file]{display:none}
       resetFaceEditor();
       setForm('fish');
       NOSE_K = 1; MOUTH_K = 1; rngNose.value = '100'; rngMouth.value = '100';
+      HAND_P = 0.10; rngHand.value = '10'; showHandP();
       rebuildFace();
       wipeYes.disabled = false;
       wipeConfirm.hidden = true;
@@ -3062,6 +3078,10 @@ input[type=file]{display:none}
       if (fk) {
         if (typeof fk.nose === 'number') { NOSE_K = fk.nose; rngNose.value = String(Math.round(fk.nose * 100)); }
         if (typeof fk.mouth === 'number') { MOUTH_K = fk.mouth; rngMouth.value = String(Math.round(fk.mouth * 100)); }
+        if (typeof fk.handP === 'number') {
+          HAND_P = Math.min(1, Math.max(0, Math.round(fk.handP * 10) / 10));
+          rngHand.value = String(Math.round(HAND_P * 100)); showHandP();
+        }
         if (fk.form) setForm(fk.form);     // まえの すがたを ひきつぐ
         rebuildFace();
       }
