@@ -1134,73 +1134,9 @@ input[type=file]{display:none}
   fishGroup.add(pelR);
 
   /* ================= ときどき なる すがた =================
-     かおを かえる たびに くじを ひく。20% タコ ／ 10% おおきな て ／ のこりは さかな。
-     ふたつが いっぺんに おきる ことは ない（ひとつだけ えらぶ） */
+     かおを かえる たびに くじを ひく。10% おおきな て ／ のこりは さかな。
+     （タコは 2026-11-21 に とりやめ。部品も しょりも のこして いない） */
   var FISH_PARTS = [bodyMesh, tailFin, dorsal, anal, pecL, pecR, pelL, pelR];
-
-  // ---- タコ ----
-  var octoGroup = new THREE.Group();
-  octoGroup.visible = false;
-  fishGroup.add(octoGroup);
-
-  // あたまの うしろの ふくろ
-  var mantleMat = new THREE.MeshStandardMaterial({ color: 0xb08274, roughness: 0.62, metalness: 0.02 });
-  var mantle = new THREE.Mesh(new THREE.SphereGeometry(1, 30, 22), mantleMat);
-  mantle.scale.set(HRX * 0.88, HRY * 0.80, HRZ * 1.30);
-  mantle.position.set(0, 0.06, HEAD_Z - HRZ * 1.05);
-  octoGroup.add(mantle);
-
-  // ---- あし ８ほん ----
-  var TENT_N = 8, TENT_SEG = 16, TENT_RING = 7;
-  var tentMat = new THREE.MeshStandardMaterial({ color: 0xa7786c, roughness: 0.66, metalness: 0.02 });
-  var tentacles = [];
-  function buildTentacle() {
-    var pos = new Float32Array((TENT_SEG + 1) * (TENT_RING + 1) * 3);
-    var idx = [];
-    for (var a = 0; a < TENT_SEG; a++) {
-      for (var b = 0; b < TENT_RING; b++) {
-        var A = a * (TENT_RING + 1) + b, B = A + TENT_RING + 1;
-        idx.push(A, B, A + 1, A + 1, B, B + 1);
-      }
-    }
-    var g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    g.setIndex(idx);
-    return g;
-  }
-  for (var ti = 0; ti < TENT_N; ti++) {
-    var tg2 = buildTentacle();
-    var tm2 = new THREE.Mesh(tg2, tentMat);
-    octoGroup.add(tm2);
-    tentacles.push({ geo: tg2, ang: ti / TENT_N * Math.PI * 2, ph: ti * 0.8 });
-  }
-  // まいこま あしを くねらせる
-  var TENT_Z0 = HEAD_Z - HRZ * 0.15;
-  function updateTentacles(t, mo) {
-    for (var i = 0; i < tentacles.length; i++) {
-      var T = tentacles[i], p = T.geo.attributes.position.array, o = 0;
-      var ca = Math.cos(T.ang), sa = Math.sin(T.ang);
-      for (var s = 0; s <= TENT_SEG; s++) {
-        var u = s / TENT_SEG;
-        // ねもとから さきへ。そとへ ひらき、したへ たれさがる（まえからも みえる ように）
-        var spread = 0.52 + u * 0.70;
-        var wig = Math.sin(u * 5.2 - t * 3.2 + T.ph) * 0.34 * u * mo;
-        var cx2 = (ca * spread - sa * wig) * HRX;
-        var cy2 = (sa * spread + ca * wig) * HRY - u * u * 1.55
-                  + Math.sin(u * 4.0 - t * 2.6 + T.ph * 1.7) * 0.16 * u * mo;
-        var cz2 = TENT_Z0 - u * 1.35;
-        var rad = 0.135 * Math.pow(1 - u, 0.60) + 0.008;
-        for (var k = 0; k <= TENT_RING; k++) {
-          var ka = k / TENT_RING * Math.PI * 2;
-          p[o++] = cx2 + Math.cos(ka) * rad;
-          p[o++] = cy2 + Math.sin(ka) * rad;
-          p[o++] = cz2 + Math.sin(ka) * rad * 0.25;
-        }
-      }
-      T.geo.attributes.position.needsUpdate = true;
-      T.geo.computeVertexNormals();
-    }
-  }
 
   // ---- おおきな て ----
   // かたから てのひらまで、ふとさの かわる １ほんの くだ。からだから ふくらんで つづく
@@ -1340,18 +1276,13 @@ input[type=file]{display:none}
   // すがたを きりかえる
   var FORM = 'fish';
   function setForm(f) {
-    FORM = (f === 'octopus' || f === 'hands') ? f : 'fish';
-    var isOcto = FORM === 'octopus', isHands = FORM === 'hands';
-    for (var i = 0; i < FISH_PARTS.length; i++) FISH_PARTS[i].visible = !isOcto;
+    // まえに タコで ほぞん して いた たんまつは、さかなとして よむ
+    FORM = (f === 'hands') ? 'hands' : 'fish';
+    var isHands = FORM === 'hands';
+    for (var i = 0; i < FISH_PARTS.length; i++) FISH_PARTS[i].visible = true;
     // てが ある ときは むなびれを しまう（てと いれかえ）
-    pecL.visible = pecR.visible = !isOcto && !isHands;
-    octoGroup.visible = isOcto;
+    pecL.visible = pecR.visible = !isHands;
     handsGroup.visible = isHands;
-    // タコの ふくろと あしは かおの いろに あわせる
-    if (isOcto) {
-      mantleMat.color.setRGB(SKIN_RGB[0] * 0.92, SKIN_RGB[1] * 0.80, SKIN_RGB[2] * 0.76);
-      tentMat.color.setRGB(SKIN_RGB[0] * 0.86, SKIN_RGB[1] * 0.74, SKIN_RGB[2] * 0.72);
-    }
     // うでは からだの はらの いろに よせる（からだと ひとつづきに みえる ように）
     var BELLY = 1.14;
     armMat.color.setRGB(
@@ -1360,10 +1291,9 @@ input[type=file]{display:none}
       (FISH_RGB[2] * BELLY) * 0.62 + SKIN_RGB[2] * 0.38
     );
   }
-  // くじを ひく（20% タコ、10% て、のこり さかな）
+  // くじを ひく（10% て、のこり さかな）
   function rollForm() {
-    var r = Math.random();
-    setForm(r < 0.20 ? 'octopus' : (r < 0.30 ? 'hands' : 'fish'));
+    setForm(Math.random() < 0.10 ? 'hands' : 'fish');
     return FORM;
   }
 
@@ -1768,7 +1698,6 @@ input[type=file]{display:none}
     var dist = dirV.length();
     if (dist > 0.0001) dirV.multiplyScalar(1 / dist);
     dirV.multiplyScalar(Math.min(fish.speed, 0.35 + dist * 1.1));
-    if (FORM === 'octopus') dirV.multiplyScalar(0.55);   // タコは ゆっくり ただよう
     fish.vel.lerp(dirV, Math.min(1, dt * (fish.speaking ? 1.8 : 1.0)));
     fish.pos.addScaledVector(fish.vel, dt);
 
@@ -2343,9 +2272,7 @@ input[type=file]{display:none}
     // からだ（はやく およぐほど しっぽを はやく つよく ふる）
     var sp = fish.vel.length();
     swimPhase += dt * (3.0 + Math.min(1.8, sp) * 4.8);
-    var isOcto = FORM === 'octopus';
-    // タコの ときは からだが ない ので、うねりを ごく よわく する
-    var amp = (0.12 + Math.min(1.6, sp) * 0.23) * mo * (isOcto ? 0.22 : 1);
+    var amp = (0.12 + Math.min(1.6, sp) * 0.23) * mo;
     var gill = 0.055 * (0.5 + 0.5 * Math.sin(t * 2.4)) * (opt.motion ? 1 : 0.4);
     var hy = fish.headYaw, hp = fish.headPitch;
     deformBody(swimPhase, amp, hy, hp, gill);
@@ -2353,8 +2280,7 @@ input[type=file]{display:none}
     deform(tailFin.geometry, tailBase, swimPhase, amp);
     deform(dorsal.geometry, dorsalBase, swimPhase, amp);
     deform(anal.geometry, analBase, swimPhase, amp);
-    if (isOcto) updateTentacles(t, mo);          // あしを グネグネ
-    else if (FORM === 'hands') updateHands(t, mo);   // てを バタバタ
+    if (FORM === 'hands') updateHands(t, mo);    // うでを うねらせる
 
     // かおは あたまと いっしょに むきを かえる
     var dzf = HEAD_Z - NECK_Z;
@@ -2408,10 +2334,8 @@ input[type=file]{display:none}
 
     updateFish(performance.now(), dt);
     updateSchool(performance.now(), dt, t, mo);
-    // たえず すこし うきしずみする。タコは ゆっくり おおきく ぷかぷか
-    fishGroup.position.y = fish.pos.y + (isOcto
-      ? (Math.sin(t * 0.52) * 0.40 + Math.sin(t * 0.83 + 1.3) * 0.14) * mo
-      : Math.sin(t * 0.85) * 0.17 * mo);
+    // たえず すこし うきしずみする
+    fishGroup.position.y = fish.pos.y + Math.sin(t * 0.85) * 0.17 * mo;
 
     // カメラ（ゆっくり まわりこみ、しゃべるとき すこし よる）
     var orb = opt.motion ? 1 : 0;
