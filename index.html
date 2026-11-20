@@ -1203,66 +1203,162 @@ input[type=file]{display:none}
   }
 
   // ---- おおきな て ----
+  // かたから てのひらまで、ふとさの かわる １ほんの くだ。からだから ふくらんで つづく
   var handsGroup = new THREE.Group();
   handsGroup.visible = false;
   fishGroup.add(handsGroup);
-  var armMat = new THREE.MeshStandardMaterial({ color: 0xa88a6e, roughness: 0.80, metalness: 0 });
+  var armMat = new THREE.MeshStandardMaterial({ color: 0x9fb09c, roughness: 0.46, metalness: 0.07 });
 
-  function buildArm(side) {
-    var root = new THREE.Group();                 // かたの ところ。ここで ばたばた する
-    root.position.set(side * 0.46, -0.12, -0.05);
-    // うで
-    var arm = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.14, 0.86, 12), armMat);
-    arm.rotation.z = Math.PI / 2;                 // よこむきに する
-    arm.position.x = side * 0.43;
-    root.add(arm);
-    // てくび
-    var wrist = new THREE.Group();
-    wrist.position.x = side * 0.86;
-    root.add(wrist);
-    // てのひら（おおきめ）
-    var palm = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.48, 0.15), armMat);
-    palm.position.x = side * 0.21;
-    wrist.add(palm);
-    // ゆび ４ほん
-    for (var f = 0; f < 4; f++) {
-      var fin2 = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.085, 0.10), armMat);
-      fin2.position.set(side * 0.55, 0.15 - f * 0.098, 0);
-      wrist.add(fin2);
+  function lerpTable(tbl, t) {
+    for (var i = 0; i < tbl.length - 1; i++) {
+      if (t <= tbl[i + 1][0]) {
+        var a = tbl[i], b = tbl[i + 1];
+        var k = (t - a[0]) / (b[0] - a[0]);
+        k = k * k * (3 - 2 * k);
+        return a[1] + (b[1] - a[1]) * k;
+      }
     }
-    // おやゆび
-    var thumb = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.095, 0.10), armMat);
-    thumb.position.set(side * 0.26, -0.24, 0.05);
-    thumb.rotation.z = side * -0.7;
-    wrist.add(thumb);
-    handsGroup.add(root);
-    return { root: root, wrist: wrist, side: side };
+    return tbl[tbl.length - 1][1];
+  }
+  // 0 = かた（からだの なか）… 0.72 = てくび … 1 = てのひらの さき
+  var ARM_R    = [[0, 0.34], [0.08, 0.235], [0.24, 0.170], [0.48, 0.140], [0.70, 0.115], [0.85, 0.180], [1, 0.155]];
+  var ARM_FLAT = [[0, 0.90], [0.55, 0.82], [0.74, 0.58], [0.88, 0.32], [1, 0.28]];   // ちいさいほど ひらたい
+  var ARM_WIDE = [[0, 1.00], [0.70, 1.00], [0.88, 1.42], [1, 1.48]];                 // てのひらで よこに ひろがる
+
+  var ARM_SEG = 24, ARM_RING = 12;
+  function tubeGeo(segs, rings) {
+    var pos = new Float32Array((segs + 1) * (rings + 1) * 3), idx = [];
+    for (var a = 0; a < segs; a++) {
+      for (var b = 0; b < rings; b++) {
+        var A = a * (rings + 1) + b, B2 = A + rings + 1;
+        idx.push(A, B2, A + 1, A + 1, B2, B2 + 1);
+      }
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    return g;
+  }
+  // さきぼそりの ゆび（じっとして いる。てのひらに ついて うごく）
+  function fingerGeo(len, r0, r1, bend) {
+    var SF = 8, RF = 8, pos = [], idx = [];
+    for (var i = 0; i <= SF; i++) {
+      var t = i / SF;
+      var r = (r0 + (r1 - r0) * t) * Math.sqrt(Math.max(0.04, 1 - t * t * 0.62));  // さきを まるく
+      var cx2 = t * len, cz2 = -bend * t * t;
+      for (var k = 0; k <= RF; k++) {
+        var a = k / RF * Math.PI * 2;
+        pos.push(cx2, Math.cos(a) * r, cz2 + Math.sin(a) * r * 0.62);   // z が うすい むき
+      }
+    }
+    for (var p2 = 0; p2 < SF; p2++) {
+      for (var q2 = 0; q2 < RF; q2++) {
+        var A2 = p2 * (RF + 1) + q2, B3 = A2 + RF + 1;
+        idx.push(A2, B3, A2 + 1, A2 + 1, B3, B3 + 1);
+      }
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
+  }
+
+  var armTmp = {
+    p: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()],
+    c: new THREE.Vector3(), d: new THREE.Vector3(),
+    T: new THREE.Vector3(), N: new THREE.Vector3(), B: new THREE.Vector3(),
+    UP: new THREE.Vector3(0, 1, 0), m: new THREE.Matrix4()
+  };
+  function buildArm(side) {
+    var tube = new THREE.Mesh(tubeGeo(ARM_SEG, ARM_RING), armMat);
+    handsGroup.add(tube);
+    var hand = new THREE.Group();
+    handsGroup.add(hand);
+    // ゆび ４ほん ＋ おやゆび
+    var fings = [];
+    for (var f = 0; f < 4; f++) {
+      var L = 0.50 - Math.abs(f - 1.4) * 0.055;
+      var m2 = new THREE.Mesh(fingerGeo(L, 0.060, 0.026, 0.06), armMat);
+      m2.position.set(0.02, (f - 1.5) * 0.102, 0);
+      m2.rotation.z = (f - 1.5) * 0.19;
+      hand.add(m2);
+      fings.push(m2);
+    }
+    var th = new THREE.Mesh(fingerGeo(0.33, 0.064, 0.030, 0.05), armMat);
+    th.position.set(-0.10, -0.17 * side, 0.03);
+    th.rotation.z = -0.95 * side;
+    hand.add(th);
+    return { tube: tube, hand: hand, fings: fings, thumb: th, side: side };
   }
   var armL = buildArm(1), armR = buildArm(-1);
-  // まいこま ばたばた させる
-  function updateHands(t, mo) {
-    var flap2 = Math.sin(t * 5.6) * 0.72 * mo;
-    var wrist2 = Math.sin(t * 5.6 + 1.1) * 0.5 * mo;
-    armL.root.rotation.z = -0.25 + flap2;
-    armR.root.rotation.z = 0.25 - flap2;
-    armL.wrist.rotation.z = wrist2;
-    armR.wrist.rotation.z = -wrist2;
+
+  // まいこま、うで ぜんたいを なめらかに うねらせる（かた → ひじ → てくび と おくれて つたわる）
+  function updateArm(A, t, mo) {
+    var s = A.side;
+    var w = t * 2.5;
+    var f0 = Math.sin(w) * mo, f1 = Math.sin(w - 0.85) * mo, f2 = Math.sin(w - 1.7) * mo;
+    var P = armTmp.p;
+    P[0].set(s * 0.26, -0.16, -0.02);                                   // からだの なか（かくれる）
+    P[1].set(s * 0.70, -0.26 + f0 * 0.07, 0.20);                        // かた
+    P[2].set(s * (1.12 + f1 * 0.05), -0.58 + f1 * 0.30, 0.72);          // ひじ
+    P[3].set(s * (0.94 + f2 * 0.08), -0.92 + f2 * 0.46, 1.46);          // てくび〜てのひら
+    var pos = A.tube.geometry.attributes.position.array, o = 0;
+    var c = armTmp.c, d = armTmp.d, T = armTmp.T, N = armTmp.N, B = armTmp.B;
+    for (var i = 0; i <= ARM_SEG; i++) {
+      var u = i / ARM_SEG, iu = 1 - u;
+      var b0 = iu * iu * iu, b1 = 3 * iu * iu * u, b2 = 3 * iu * u * u, b3 = u * u * u;
+      c.set(P[0].x * b0 + P[1].x * b1 + P[2].x * b2 + P[3].x * b3,
+            P[0].y * b0 + P[1].y * b1 + P[2].y * b2 + P[3].y * b3,
+            P[0].z * b0 + P[1].z * b1 + P[2].z * b2 + P[3].z * b3);
+      var e0 = 3 * iu * iu, e1 = 6 * iu * u, e2 = 3 * u * u;
+      d.set((P[1].x - P[0].x) * e0 + (P[2].x - P[1].x) * e1 + (P[3].x - P[2].x) * e2,
+            (P[1].y - P[0].y) * e0 + (P[2].y - P[1].y) * e1 + (P[3].y - P[2].y) * e2,
+            (P[1].z - P[0].z) * e0 + (P[2].z - P[1].z) * e1 + (P[3].z - P[2].z) * e2);
+      if (d.lengthSq() < 1e-8) d.set(s, 0, 0);
+      T.copy(d).normalize();
+      N.crossVectors(armTmp.UP, T);
+      if (N.lengthSq() < 1e-6) N.set(0, 0, 1); else N.normalize();
+      B.crossVectors(T, N);
+      var r = lerpTable(ARM_R, u), rn = r * lerpTable(ARM_WIDE, u), rb = r * lerpTable(ARM_FLAT, u);
+      for (var k = 0; k <= ARM_RING; k++) {
+        var a = k / ARM_RING * Math.PI * 2, ca = Math.cos(a) * rn, sa = Math.sin(a) * rb;
+        pos[o++] = c.x + N.x * ca + B.x * sa;
+        pos[o++] = c.y + N.y * ca + B.y * sa;
+        pos[o++] = c.z + N.z * ca + B.z * sa;
+      }
+    }
+    A.tube.geometry.attributes.position.needsUpdate = true;
+    A.tube.geometry.computeVertexNormals();
+    // ゆびは てのひらの さきに つける
+    A.hand.position.copy(c);
+    armTmp.m.makeBasis(T, N, B);
+    A.hand.quaternion.setFromRotationMatrix(armTmp.m);
   }
+  function updateHands(t, mo) { updateArm(armL, t, mo); updateArm(armR, t, mo); }
 
   // すがたを きりかえる
   var FORM = 'fish';
   function setForm(f) {
     FORM = (f === 'octopus' || f === 'hands') ? f : 'fish';
-    var isOcto = FORM === 'octopus';
+    var isOcto = FORM === 'octopus', isHands = FORM === 'hands';
     for (var i = 0; i < FISH_PARTS.length; i++) FISH_PARTS[i].visible = !isOcto;
+    // てが ある ときは むなびれを しまう（てと いれかえ）
+    pecL.visible = pecR.visible = !isOcto && !isHands;
     octoGroup.visible = isOcto;
-    handsGroup.visible = FORM === 'hands';
+    handsGroup.visible = isHands;
     // タコの ふくろと あしは かおの いろに あわせる
     if (isOcto) {
       mantleMat.color.setRGB(SKIN_RGB[0] * 0.92, SKIN_RGB[1] * 0.80, SKIN_RGB[2] * 0.76);
       tentMat.color.setRGB(SKIN_RGB[0] * 0.86, SKIN_RGB[1] * 0.74, SKIN_RGB[2] * 0.72);
     }
-    armMat.color.setRGB(SKIN_RGB[0] * 0.86, SKIN_RGB[1] * 0.82, SKIN_RGB[2] * 0.80);
+    // うでは からだの はらの いろに よせる（からだと ひとつづきに みえる ように）
+    var BELLY = 1.14;
+    armMat.color.setRGB(
+      (FISH_RGB[0] * BELLY) * 0.62 + SKIN_RGB[0] * 0.38,
+      (FISH_RGB[1] * BELLY) * 0.62 + SKIN_RGB[1] * 0.38,
+      (FISH_RGB[2] * BELLY) * 0.62 + SKIN_RGB[2] * 0.38
+    );
   }
   // くじを ひく（20% タコ、10% て、のこり さかな）
   function rollForm() {
